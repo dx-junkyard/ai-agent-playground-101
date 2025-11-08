@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+requests
+mysql-connector-python
+openai
+python-dotenv
+beautifulsoup4
