@@ -41,7 +41,16 @@ async def post_usermessage(request: Request) -> str:
     if user_id:
         repo.insert_message(user_id, "user", message)
 
-    ai_response = ai_generator.create_response(message)
+    conversation_history = ""
+    if user_id:
+        history_records = repo.get_user_messages(user_id=user_id, limit=20)
+        if history_records:
+            conversation_history = "\n".join(
+                f"{'利用者' if record['role'] == 'user' else '職員'}: {record['message']}"
+                for record in reversed(history_records)
+            )
+
+    ai_response = ai_generator.create_response(message, conversation_history)
     logger.info(f"AI response: {ai_response}")
     if user_id:
         repo.insert_message(user_id, "ai", ai_response)

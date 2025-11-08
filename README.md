@@ -79,8 +79,13 @@
 2. **環境変数の設定**
     - `.env.example` を `.env` にコピーし、以下を設定します
         - `OPENAI_API_KEY`: LLM アクセス用キー（必要に応じて）
-        - `LINE_CHANNEL_ID`, `LINE_CHANNEL_SECRET`, `LINE_REDIRECT_URI`
+        - `LINE_PROVIDER_NAME`, `LINE_PROVIDER_ID`: 利用する LINE プロバイダー情報（既定は `ai-agent` / `2004639780`）
+        - `LINE_CHANNEL_ID`, `LINE_CHANNEL_SECRET`: LINE ログインチャネルのクレデンシャル
+        - `LINE_REDIRECT_URI`: LINE Developers に登録したコールバック URL（開発環境では `http://localhost:8080`）
+        - `DISABLE_LINE_LOGIN`: 開発中に LINE ログインをスキップしたい場合は `true`
     - `config.py` の `AI_URL` / `AI_MODEL` を使用する LLM に合わせて変更します
+
+    > ⚠️ LINE Developers で `ai-agent` プロバイダー（ID: `2004639780`）配下にチャネルを作成し、同チャネルの **チャネル ID** と **チャネルシークレット** を `.env` に転記してください。未設定の場合、UI 上でエラーが表示されログインできません。
 
 3. **コンテナの起動**
     ```bash

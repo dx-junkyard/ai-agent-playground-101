@@ -32,13 +32,17 @@ class AIClient:
             logger.error(f"Failed to read prompt template: {e}")
             return "以下はユーザーの発言です。会話が盛り上がるよう、自然な返答をしてください。\n【ユーザー発言】:\n{user_message}\n"
 
-    def create_response(self, user_message: str) -> str:
+    def create_response(self, user_message: str, conversation_history: str = "") -> str:
         """
         ユーザーの発言に対するAIの回答を生成
         """
 
         prompt_template = self._load_prompt()
-        prompt = prompt_template.format(user_message=user_message)
+        history_block = conversation_history.strip() or "（まだ会話履歴はありません）"
+        prompt = prompt_template.format(
+            user_message=user_message,
+            conversation_history=history_block,
+        )
         logger.info(f"Prompt sent to LLM: {prompt}")
 
         try:
