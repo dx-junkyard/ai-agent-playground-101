@@ -1,7 +1,10 @@
 import json
+import logging
 import mysql.connector
 from mysql.connector import errorcode
 from config import DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT
+
+logger = logging.getLogger(__name__)
 
 class DBClient:
     def __init__(self):
@@ -36,7 +39,7 @@ class DBClient:
             )
             conn.commit()
         except mysql.connector.Error as err:
-            print(f"[✗] Failed ensuring user_profiles table: {err}")
+            logger.error("Failed ensuring user_profiles table: %s", err)
         finally:
             if cursor:
                 cursor.close()
@@ -46,6 +49,8 @@ class DBClient:
     def create_user(self, line_user_id=None):
         import uuid
         user_id = str(uuid.uuid4())
+        conn = None
+        cursor = None
         try:
             conn = mysql.connector.connect(**self.config)
             cursor = conn.cursor()
@@ -54,16 +59,16 @@ class DBClient:
                 (user_id, line_user_id),
             )
             conn.commit()
+            logger.info("Created user %s (line_user_id=%s)", user_id, line_user_id)
         except mysql.connector.Error as err:
-            if err.errno == errorcode.ER_DUP_ENTRY:
+            logger.error("MySQL error on create_user: %s", err)
+            if err.errno == errorcode.ER_DUP_ENTRY and cursor:
                 cursor.execute(
                     "SELECT id FROM users WHERE line_user_id=%s",
                     (line_user_id,),
                 )
                 row = cursor.fetchone()
                 user_id = row[0] if row else user_id
-            else:
-                print(f"[✗] MySQL Error: {err}")
         finally:
             if cursor:
                 cursor.close()
@@ -72,6 +77,8 @@ class DBClient:
         return user_id
 
     def insert_message(self, user_id, role, message):
+        conn = None
+        cursor = None
         try:
             conn = mysql.connector.connect(**self.config)
             cursor = conn.cursor()
@@ -84,10 +91,11 @@ class DBClient:
             cursor.execute(query, values)
             conn.commit()
 
-            print(f"[✓] Inserted user_messages for user_id={user_id} role={role}")
+            logger.debug("Inserted message for user_id=%s role=%s", user_id, role)
 
         except mysql.connector.Error as err:
-            print(f"[✗] MySQL Error: {err}")
+            logger.error("MySQL error on insert_message (user_id=%s role=%s): %s", user_id, role, err)
+            raise
         finally:
             if cursor:
                 cursor.close()
@@ -111,7 +119,7 @@ class DBClient:
             messages = cursor.fetchall()
             return messages
         except mysql.connector.Error as err:
-            print(f"[✗] MySQL Error: {err}")
+            logger.error("MySQL error on get_user_messages (user_id=%s): %s", user_id, err)
             return []
         finally:
             if cursor: cursor.close()
@@ -131,7 +139,7 @@ class DBClient:
             if row and row.get("profile"):
                 return json.loads(row["profile"])
         except mysql.connector.Error as err:
-            print(f"[✗] MySQL Error: {err}")
+            logger.error("MySQL error on get_user_profile (user_id=%s): %s", user_id, err)
         finally:
             if cursor:
                 cursor.close()
@@ -154,8 +162,9 @@ class DBClient:
                 (user_id, json.dumps(profile_data, ensure_ascii=False))
             )
             conn.commit()
+            logger.info("Updated user profile for user_id=%s", user_id)
         except mysql.connector.Error as err:
-            print(f"[✗] MySQL Error: {err}")
+            logger.error("MySQL error on upsert_user_profile (user_id=%s): %s", user_id, err)
         finally:
             if cursor:
                 cursor.close()
