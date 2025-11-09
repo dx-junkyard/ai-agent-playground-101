@@ -255,10 +255,11 @@ class ChatUI:
                 st.markdown(prompt)
 
             reply = self.call_api(prompt)
+            reply_display = reply.replace("\\n", "\n")
             st.session_state.messages.append(
                 {
                     "role": "assistant",
-                    "content": reply,
+                    "content": reply_display,
                     "meta": [
                         {"label": "いま伺えた内容", "value": f"{sum(st.session_state.info_status.values())}/{len(INFO_ITEMS)}"},
                         {"label": "本日の確認ポイント", "value": st.session_state.daily_mission["text"]},
@@ -267,7 +268,7 @@ class ChatUI:
                 }
             )
             with st.chat_message("ai"):
-                st.markdown(reply)
+                st.markdown(reply_display)
 
             st.session_state.info_status.update(_analyze_information(st.session_state.messages))
             mission_key = st.session_state.daily_mission["key"]

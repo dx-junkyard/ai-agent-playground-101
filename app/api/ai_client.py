@@ -61,6 +61,7 @@ class AIClient:
                 temperature=0.6,
             )
             output_text = response.output_text.strip()
+            output_text = output_text.replace("\\n", "\n")
             logger.debug("Raw OpenAI response: %s", output_text)
             return output_text
         except Exception as e:
