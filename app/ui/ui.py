@@ -246,7 +246,7 @@ class ChatUI:
             if st.button("修正してほしい", key="confirm_ng"):
                 st.session_state.awaiting_feedback = True
                 st.session_state.confirmation_required = True
-                st.experimental_rerun()
+                self._rerun()
 
         if st.session_state.awaiting_feedback:
             feedback = st.text_area("修正してほしい点を教えてください", key="ng_feedback")
