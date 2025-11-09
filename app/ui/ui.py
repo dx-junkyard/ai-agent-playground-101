@@ -6,6 +6,7 @@ import textwrap
 
 import requests
 import streamlit as st
+from streamlit_extras.metric_cards import style_metric_cards
 
 from line_login import ensure_login
 
@@ -144,7 +145,11 @@ class ChatUI:
     def _init_session(self):
         if "messages" not in st.session_state:
             st.session_state.messages = [
-                {"role": "assistant", "content": "ようこそ！国分寺市窓口チャレンジへ。質問にお答えいただくと進捗がたまります✨"}
+                {
+                    "role": "assistant",
+                    "content": "こんにちは。国分寺市役所オンライン相談窓口です。お困りごとがスムーズに解決できるよう、一緒に進めてまいりますね。",
+                    "summary": "初回案内: 利用者に寄り添った挨拶",
+                }
             ]
         if "info_status" not in st.session_state:
             st.session_state.info_status = {item["key"]: False for item in INFO_ITEMS}
@@ -162,28 +167,28 @@ class ChatUI:
             "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Kokubunji_city_logo.svg/512px-Kokubunji_city_logo.svg.png",
             width=120,
         )
-        st.sidebar.title("窓口チャレンジ")
+        st.sidebar.title("ご相談ナビゲーター")
 
         completed = sum(1 for v in st.session_state.info_status.values() if v)
         total = len(INFO_ITEMS)
         st.sidebar.progress(completed / total)
-        st.sidebar.caption(f"情報取得: {completed}/{total}")
+        st.sidebar.caption(f"確認が進んだ項目: {completed}/{total}")
 
         earned, next_badge = _calc_badges(completed)
         if earned:
-            st.sidebar.success("🏅 獲得バッジ: " + " / ".join(earned))
+            st.sidebar.success("🌟 これまでに確認できたこと: " + " / ".join(earned))
         if next_badge:
             threshold, badge_name = next_badge
             remaining = threshold - completed
-            st.sidebar.info(f"次のバッジ『{badge_name}』まであと {remaining} 項目")
+            st.sidebar.info(f"あと {remaining} 項目ほど伺えれば『{badge_name}』レベルです")
 
         mission = st.session_state.daily_mission
         if st.session_state.mission_completed:
-            st.sidebar.success(f"🎯 デイリーミッション達成！: {mission['text']}")
+            st.sidebar.success(f"🎯 本日の確認ポイント達成: {mission['text']}")
         else:
-            st.sidebar.warning(f"🎯 今日のミッション: {mission['text']}")
+            st.sidebar.warning(f"🎯 本日の確認ポイント: {mission['text']} (お手続きがスムーズになります)")
 
-        with st.sidebar.expander("情報チェックリスト", expanded=True):
+        with st.sidebar.expander("これまで伺えた内容", expanded=True):
             for item in INFO_ITEMS:
                 status = "✅" if st.session_state.info_status[item["key"]] else "⏳"
                 st.write(f"{status} {item['label']}")
@@ -191,28 +196,43 @@ class ChatUI:
     def _render_hint_bar(self):
         missing_items = [item for item in INFO_ITEMS if not st.session_state.info_status[item["key"]]]
         if not missing_items:
-            st.success("必要な情報がそろいました！追加で気になることがあればお知らせください。")
+            st.success("必要な情報はそろいました。続けて気になる点があれば遠慮なくお知らせください。")
             st.session_state.mission_completed = True
             return
 
         suggestions = textwrap.shorten(" / ".join(item["hint"] for item in missing_items[:2]), width=120)
-        st.info(f"🏁 次の質問ヒント: {suggestions}")
+        st.info(f"📌 次に伺うとお役に立てそうな内容: {suggestions}")
 
     def _ensure_window_selection(self):
         if st.session_state.window_selected:
             return
 
-        st.header("ご利用窓口の選択")
+        st.header("まずはご相談内容に近い窓口をお選びください")
         options = [
             "住民票・印鑑証明", "戸籍・転入転出", "子育て・教育", "高齢者支援", "国民健康保険・年金",
             "税金・納付", "事業者向け相談", "その他総合案内",
         ]
-        choice = st.radio("ご利用の窓口をお選びください", options, index=0)
-        if st.button("この窓口で相談を始める", type="primary"):
+        choice = st.radio("以下から最も近いものをお選びいただくと、ご案内がスムーズになります。", options, index=0)
+        if st.button("この内容で相談を進める", type="primary"):
             st.session_state.window_selected = choice
             st.session_state.messages.append({"role": "user", "content": f"窓口選択: {choice}"})
             self._rerun()
         st.stop()
+
+    def _render_conversation(self):
+        for index, message in enumerate(st.session_state.messages):
+            role = "user" if message["role"] == "user" else "assistant"
+            with st.chat_message("user" if role == "user" else "ai"):
+                if role == "assistant" and message.get("meta"):
+                    meta = message["meta"]
+                    cols = st.columns(len(meta))
+                    for col, item in zip(cols, meta):
+                        with col:
+                            st.metric(item["label"], item["value"])
+                    style_metric_cards(border_left_color="#f0ad4e")
+                st.markdown(message["content"], help=message.get("hint"))
+                if role == "assistant" and message.get("summary"):
+                    st.caption(message["summary"])
 
     def run(self):
         st.set_page_config(page_title="国分寺市 窓口チャット", page_icon="🏢", layout="wide")
@@ -225,22 +245,9 @@ class ChatUI:
         st.title("国分寺市役所 行政窓口チャット")
         self._render_hint_bar()
 
-        if "last_audio" in st.session_state:
-            text = self.voice.transcribe(st.session_state.pop("last_audio"))
-            if text and not st.session_state.voice_processed:
-                st.session_state.voice_processed = True
-                st.session_state.messages.append({"role": "user", "content": text})
-                reply = self.call_api(text)
-                st.session_state.messages.append({"role": "assistant", "content": reply})
-                self._rerun()
-            elif not text:
-                st.session_state.voice_processed = False
+        self._render_conversation()
 
-        for m in st.session_state.messages:
-            with st.chat_message("user" if m["role"] == "user" else "ai"):
-                st.markdown(m["content"])
-
-        prompt = st.chat_input("相談内容を入力してください。記入するたびにポイントが貯まります！")
+        prompt = st.chat_input("気になっていることや手続きのご相談内容をご自由に入力してください")
 
         if prompt:
             st.session_state.messages.append({"role": "user", "content": prompt})
@@ -248,7 +255,17 @@ class ChatUI:
                 st.markdown(prompt)
 
             reply = self.call_api(prompt)
-            st.session_state.messages.append({"role": "assistant", "content": reply})
+            st.session_state.messages.append(
+                {
+                    "role": "assistant",
+                    "content": reply,
+                    "meta": [
+                        {"label": "いま伺えた内容", "value": f"{sum(st.session_state.info_status.values())}/{len(INFO_ITEMS)}"},
+                        {"label": "本日の確認ポイント", "value": st.session_state.daily_mission["text"]},
+                    ],
+                    "summary": "不安な点があれば続けてお知らせください。",
+                }
+            )
             with st.chat_message("ai"):
                 st.markdown(reply)
 

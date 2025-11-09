@@ -78,12 +78,14 @@
 
 2. **環境変数の設定**
     - `.env.example` を `.env` にコピーし、以下を設定します
-        - `OPENAI_API_KEY`: LLM アクセス用キー（必要に応じて）
+        - `OPENAI_API_KEY`: OpenAI へのアクセスキー
+        - `OPENAI_MODEL`: 利用したい OpenAI モデル（既定は `gpt-4o-mini`）
+        - `OPENAI_API_BASE`: OpenAI 互換エンドポイントを利用する場合のみ設定（通常は不要）
         - `LINE_PROVIDER_NAME`, `LINE_PROVIDER_ID`: 利用する LINE プロバイダー情報（既定は `ai-agent` / `2004639780`）
         - `LINE_CHANNEL_ID`, `LINE_CHANNEL_SECRET`: LINE ログインチャネルのクレデンシャル
         - `LINE_REDIRECT_URI`: LINE Developers に登録したコールバック URL（開発環境では `http://localhost:8080`）
         - `DISABLE_LINE_LOGIN`: 開発中に LINE ログインをスキップしたい場合は `true`
-    - `config.py` の `AI_URL` / `AI_MODEL` を使用する LLM に合わせて変更します
+    - `config.py` では上記の環境変数からモデルやエンドポイントを参照するようになっています
 
     > ⚠️ LINE Developers で `ai-agent` プロバイダー（ID: `2004639780`）配下にチャネルを作成し、同チャネルの **チャネル ID** と **チャネルシークレット** を `.env` に転記してください。未設定の場合、UI 上でエラーが表示されログインできません。
 
@@ -132,10 +134,10 @@ curl 'http://localhost:8086/api/v1/user-messages?user_id=<user_id>&limit=10'
 
 - `test/api_test.sh`: API エンドポイントの疎通確認
 - `test/db_connect.sh`: MySQL 接続確認
-- `test/ollama_test.sh`: LLM エンドポイントへのリクエスト確認
 
 ### トラブルシューティング
 
+- OpenAI からの応答が得られない場合は `OPENAI_API_KEY` の設定、組織・プロジェクト権限、API 利用制限をご確認ください。
 - PR 作成が失敗する場合は `scripts/debug_pr_creation.py` を実行し、Git のリモート設定やトークン設定など、よくある原因をチェックしてください。
 
 ### コード修正時のポイント

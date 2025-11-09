@@ -1,7 +1,10 @@
-import requests
 import logging
 from pathlib import Path
-from config import AI_MODEL, AI_URL
+import os
+
+from openai import OpenAI
+
+from config import AI_MODEL, AI_API_BASE
 
 # ログ設定（必要に応じてレベルを DEBUG に変更可能）
 logging.basicConfig(
@@ -17,12 +20,18 @@ class AIClient:
 
     PROMPT_PATH = Path(__file__).resolve().parents[2] / "static" / "prompt.txt"
 
-    def __init__(self, model: str = AI_MODEL, base_url: str = AI_URL, prompt_path: Path = None):
+    def __init__(self, model: str = AI_MODEL, prompt_path: Path = None):
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            logger.warning("OPENAI_API_KEY が設定されていません。応答生成に失敗します。")
         self.model = model
-        self.api_url = f"{base_url}/api/generate"
         self.prompt_path = Path(prompt_path) if prompt_path else self.PROMPT_PATH
-        logging.info(
-            f"AIClient initialized with model: {model} and endpoint: {self.api_url}, prompt: {self.prompt_path}"
+        self.client = OpenAI(api_key=api_key, base_url=AI_API_BASE)
+        logger.info(
+            "AIClient initialized with OpenAI model: %s (base_url=%s), prompt: %s",
+            model,
+            AI_API_BASE or "default",
+            self.prompt_path,
         )
 
     def _load_prompt(self) -> str:
@@ -43,16 +52,17 @@ class AIClient:
             user_message=user_message,
             conversation_history=history_block,
         )
-        logger.info(f"Prompt sent to LLM: {prompt}")
+        logger.info(f"Prompt sent to OpenAI model {self.model}: {prompt}")
 
         try:
-            response = requests.post(self.api_url, json={
-                "model": self.model,
-                "prompt": prompt,
-                "stream": False
-            })
-            response.raise_for_status()
-            return response.json().get("response", "").strip()
+            response = self.client.responses.create(
+                model=self.model,
+                input=prompt,
+                temperature=0.6,
+            )
+            output_text = response.output_text.strip()
+            logger.debug("Raw OpenAI response: %s", output_text)
+            return output_text
         except Exception as e:
-            logging.error(f"[✗] 返答生成失敗: {e}")
-            return "すみません、AIが回答できませんでした。"
+            logger.error(f"[✗] 返答生成失敗 (OpenAI): {e}")
+            return "すみません、現在応答を生成できませんでした。少し時間をおいてお試しください。"

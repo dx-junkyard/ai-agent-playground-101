@@ -1,9 +1,10 @@
-# config.py
-# ここに設定を記載します
+import os
 
-AI_MODEL = "schroneko/llama-3.1-swallow-8b-instruct-v0.1:latest"
-AI_URL = "http://host.docker.internal:11434"
+# AI 設定
+AI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+AI_API_BASE = os.getenv("OPENAI_API_BASE")
 
+# データベース設定
 DB_HOST = "db"
 DB_USER = "me"
 DB_PASSWORD = "me"
