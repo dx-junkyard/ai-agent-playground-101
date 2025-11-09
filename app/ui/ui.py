@@ -159,8 +159,18 @@ class ChatUI:
             st.session_state.mission_completed = False
         if "window_selected" not in st.session_state:
             st.session_state.window_selected = None
+        if "confirmation_required" not in st.session_state:
+            st.session_state.confirmation_required = False
+        if "awaiting_feedback" not in st.session_state:
+            st.session_state.awaiting_feedback = False
 
+        self._refresh_progress()
+
+    def _refresh_progress(self):
         st.session_state.info_status.update(_analyze_information(st.session_state.messages))
+        mission_key = st.session_state.daily_mission["key"]
+        if st.session_state.info_status.get(mission_key):
+            st.session_state.mission_completed = True
 
     def _render_sidebar(self):
         st.sidebar.image(
@@ -216,8 +226,54 @@ class ChatUI:
         if st.button("この内容で相談を進める", type="primary"):
             st.session_state.window_selected = choice
             st.session_state.messages.append({"role": "user", "content": f"窓口選択: {choice}"})
+            self._refresh_progress()
             self._rerun()
         st.stop()
+
+    def _render_confirmation_prompt(self):
+        if not st.session_state.messages or not st.session_state.confirmation_required:
+            return
+
+        st.success("直前のご案内について、内容をご確認ください。問題がなければ『大丈夫』を、修正が必要な場合は『修正してほしい』を選んでください。")
+        cols = st.columns(2)
+        with cols[0]:
+            if st.button("大丈夫です", key="confirm_ok"):
+                st.session_state.confirmation_required = False
+                st.session_state.messages.append({"role": "user", "content": "OK: 内容に問題はありません。"})
+                self._refresh_progress()
+                self._rerun()
+        with cols[1]:
+            if st.button("修正してほしい", key="confirm_ng"):
+                st.session_state.awaiting_feedback = True
+                st.session_state.confirmation_required = True
+                st.experimental_rerun()
+
+        if st.session_state.awaiting_feedback:
+            feedback = st.text_area("修正してほしい点を教えてください", key="ng_feedback")
+            submit_disabled = not feedback.strip()
+            if st.button("修正依頼を送信", disabled=submit_disabled):
+                feedback_text = feedback.strip()
+                st.session_state.awaiting_feedback = False
+                st.session_state.confirmation_required = False
+                st.session_state.ng_feedback = ""
+
+                st.session_state.messages.append({"role": "user", "content": f"修正希望: {feedback_text}"})
+                reply = self.call_api(feedback_text)
+                reply_display = reply.replace("\\n", "\n")
+                st.session_state.messages.append(
+                    {
+                        "role": "assistant",
+                        "content": reply_display,
+                        "meta": [
+                            {"label": "いま伺えた内容", "value": f"{sum(st.session_state.info_status.values())}/{len(INFO_ITEMS)}"},
+                            {"label": "本日の確認ポイント", "value": st.session_state.daily_mission["text"]},
+                        ],
+                        "summary": "いただいたご要望を反映しました。引き続き気になる点があればお知らせください。",
+                    }
+                )
+                st.session_state.confirmation_required = True
+                self._refresh_progress()
+                self._rerun()
 
     def _render_conversation(self):
         for index, message in enumerate(st.session_state.messages):
@@ -246,11 +302,17 @@ class ChatUI:
         self._render_hint_bar()
 
         self._render_conversation()
+        self._render_confirmation_prompt()
+
+        if st.session_state.confirmation_required:
+            st.info("直前の回答についての確認を優先しています。上部のボタンからご回答ください。")
+            return
 
         prompt = st.chat_input("気になっていることや手続きのご相談内容をご自由に入力してください")
 
         if prompt:
             st.session_state.messages.append({"role": "user", "content": prompt})
+            self._refresh_progress()
             with st.chat_message("user"):
                 st.markdown(prompt)
 
@@ -267,14 +329,11 @@ class ChatUI:
                     "summary": "不安な点があれば続けてお知らせください。",
                 }
             )
+            st.session_state.confirmation_required = True
             with st.chat_message("ai"):
                 st.markdown(reply_display)
 
-            st.session_state.info_status.update(_analyze_information(st.session_state.messages))
-            mission_key = st.session_state.daily_mission["key"]
-            if st.session_state.info_status.get(mission_key):
-                st.session_state.mission_completed = True
-
+            self._refresh_progress()
             self._rerun()
 
 

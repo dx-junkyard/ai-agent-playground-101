@@ -174,6 +174,7 @@ async def post_usermessage(request: Request) -> str:
     user_id = body.get("user_id")
     repo = DBClient()
     if user_id:
+        repo.ensure_user_exists(user_id)
         repo.insert_message(user_id, "user", message)
 
     conversation_history = ""

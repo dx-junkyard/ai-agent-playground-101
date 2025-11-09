@@ -76,6 +76,26 @@ class DBClient:
                 conn.close()
         return user_id
 
+    def ensure_user_exists(self, user_id, line_user_id=None):
+        conn = None
+        cursor = None
+        try:
+            conn = mysql.connector.connect(**self.config)
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT IGNORE INTO users (id, line_user_id) VALUES (%s, %s)",
+                (user_id, line_user_id),
+            )
+            conn.commit()
+            logger.debug("Ensured user exists: %s", user_id)
+        except mysql.connector.Error as err:
+            logger.error("MySQL error on ensure_user_exists (user_id=%s): %s", user_id, err)
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
+
     def insert_message(self, user_id, role, message):
         conn = None
         cursor = None
