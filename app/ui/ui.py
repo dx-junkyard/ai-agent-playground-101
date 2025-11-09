@@ -15,6 +15,18 @@ API_URL = os.environ.get("API_URL", "http://api:8000/api/v1/user-message")
 
 INFO_ITEMS = [
     {
+        "key": "age",
+        "label": "年齢",
+        "patterns": [r"\b\d{1,3}\s*(歳|才)"],
+        "hint": "ご本人様や対象の方の年齢を教えてください",
+    },
+    {
+        "key": "household",
+        "label": "家族構成",
+        "patterns": [r"家族", r"夫", r"妻", r"子ども", r"世帯", r"同居"],
+        "hint": "一緒にお住まいのご家族について伺ってもよろしいでしょうか",
+    },
+    {
         "key": "residence",
         "label": "居住状況",
         "patterns": [r"市内", r"国分寺", r"在住", r"転入", r"転出", r"引っ越"],
@@ -23,20 +35,8 @@ INFO_ITEMS = [
     {
         "key": "address",
         "label": "住所・予定地",
-        "patterns": [r"丁目", r"丁目", r"住所", r"町"],
+        "patterns": [r"丁目", r"番地", r"住所", r"町"],
         "hint": "差し支えなければ町名など大まかな住所を伺います",
-    },
-    {
-        "key": "household",
-        "label": "世帯構成",
-        "patterns": [r"家族", r"夫", r"妻", r"子ども", r"世帯", r"同居"],
-        "hint": "ご一緒にお住まいのご家族について教えてください",
-    },
-    {
-        "key": "age_group",
-        "label": "対象者の年齢層",
-        "patterns": [r"歳", r"才", r"児童", r"高齢", r"学生"],
-        "hint": "ご相談の対象となる方の年齢や世代を教えてください",
     },
     {
         "key": "purpose",
@@ -63,6 +63,18 @@ INFO_ITEMS = [
         "hint": "来庁予定かオンライン・郵送などご希望の方法を教えてください",
     },
     {
+        "key": "interests",
+        "label": "興味・関心",
+        "patterns": [r"趣味", r"好き", r"興味", r"楽し"],
+        "hint": "差し支えなければ好きなことや興味のあることを伺えますか",
+    },
+    {
+        "key": "exercise",
+        "label": "運動歴",
+        "patterns": [r"運動", r"スポーツ", r"トレーニング", r"体操"],
+        "hint": "普段されている運動やスポーツがあれば教えてください",
+    },
+    {
         "key": "considerations",
         "label": "配慮事項",
         "patterns": [r"体", r"障害", r"言語", r"仕事", r"勤務", r"育児"],
@@ -77,11 +89,11 @@ BADGES = [
 ]
 
 DAILY_MISSIONS = [
-    "居住状況を聞き出そう",
-    "相談目的を明確にしよう",
-    "必要書類を確認しよう",
-    "期限や希望日を確認しよう",
-    "来庁かオンラインか希望を聞き出そう",
+    {"key": "age", "text": "年齢を伺おう"},
+    {"key": "household", "text": "家族構成を把握しよう"},
+    {"key": "interests", "text": "興味のあることを聞き出そう"},
+    {"key": "exercise", "text": "運動歴を確認しよう"},
+    {"key": "residence", "text": "居住状況を確認しよう"},
 ]
 
 
@@ -140,6 +152,8 @@ class ChatUI:
             st.session_state.daily_mission = random.choice(DAILY_MISSIONS)
         if "mission_completed" not in st.session_state:
             st.session_state.mission_completed = False
+        if "window_selected" not in st.session_state:
+            st.session_state.window_selected = None
 
         st.session_state.info_status.update(_analyze_information(st.session_state.messages))
 
@@ -163,11 +177,11 @@ class ChatUI:
             remaining = threshold - completed
             st.sidebar.info(f"次のバッジ『{badge_name}』まであと {remaining} 項目")
 
-        mission_text = st.session_state.daily_mission
+        mission = st.session_state.daily_mission
         if st.session_state.mission_completed:
-            st.sidebar.success(f"🎯 デイリーミッション達成！: {mission_text}")
+            st.sidebar.success(f"🎯 デイリーミッション達成！: {mission['text']}")
         else:
-            st.sidebar.warning(f"🎯 今日のミッション: {mission_text}")
+            st.sidebar.warning(f"🎯 今日のミッション: {mission['text']}")
 
         with st.sidebar.expander("情報チェックリスト", expanded=True):
             for item in INFO_ITEMS:
@@ -184,11 +198,29 @@ class ChatUI:
         suggestions = textwrap.shorten(" / ".join(item["hint"] for item in missing_items[:2]), width=120)
         st.info(f"🏁 次の質問ヒント: {suggestions}")
 
+    def _ensure_window_selection(self):
+        if st.session_state.window_selected:
+            return
+
+        st.header("ご利用窓口の選択")
+        options = [
+            "住民票・印鑑証明", "戸籍・転入転出", "子育て・教育", "高齢者支援", "国民健康保険・年金",
+            "税金・納付", "事業者向け相談", "その他総合案内",
+        ]
+        choice = st.radio("ご利用の窓口をお選びください", options, index=0)
+        if st.button("この窓口で相談を始める", type="primary"):
+            st.session_state.window_selected = choice
+            st.session_state.messages.append({"role": "user", "content": f"窓口選択: {choice}"})
+            self._rerun()
+        st.stop()
+
     def run(self):
         st.set_page_config(page_title="国分寺市 窓口チャット", page_icon="🏢", layout="wide")
         ensure_login()
         self._init_session()
         self._render_sidebar()
+
+        self._ensure_window_selection()
 
         st.title("国分寺市役所 行政窓口チャット")
         self._render_hint_bar()
@@ -221,11 +253,8 @@ class ChatUI:
                 st.markdown(reply)
 
             st.session_state.info_status.update(_analyze_information(st.session_state.messages))
-            if st.session_state.daily_mission and any(
-                st.session_state.info_status[item["key"]]
-                for item in INFO_ITEMS
-                if item["label"] in st.session_state.daily_mission
-            ):
+            mission_key = st.session_state.daily_mission["key"]
+            if st.session_state.info_status.get(mission_key):
                 st.session_state.mission_completed = True
 
             self._rerun()
