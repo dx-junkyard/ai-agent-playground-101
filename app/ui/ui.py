@@ -40,7 +40,7 @@ class ChatUI:
 
         if "messages" not in st.session_state:
             st.session_state.messages = [
-                {"role": "assistant", "content": "こんにちは！チャットへようこそ。"}
+                {"role": "assistant", "content": "こんにちは！何かお困りのことはありますか？"}
             ]
 
         if "last_audio" in st.session_state:
