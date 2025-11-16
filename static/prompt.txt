@@ -20,23 +20,23 @@
 6. 会話の内容を踏まえて仮説を検証するために、次にユーザーへ投げかける質問を next_question として出力してください。質問は一度に一つで、自然な日本語で書いてください。
 7. 最終的な返答は次の JSON 構造のみを含み、余計な文章やコードブロックを付けないでください。
 
-{
-  "resident_profile": {
-    "basic": {{...}},
-    "lifestyle": {{...}},
-    "economic": {{...}},
-    "health": {{...}},
-    "behavior": {{...}},
+{{
+  "resident_profile": {{
+    "basic": {{{{...}}}},
+    "lifestyle": {{{{...}}}},
+    "economic": {{{{...}}}},
+    "health": {{{{...}}}},
+    "behavior": {{{{...}}}},
     "hypothesis": <string|null>,
     "labels": <string 配列>
-  },
-  "service_needs": {
-    "explicit_needs": {{...}},
-    "implicit_needs": {{...}},
-    "constraints": {{...}},
-    "priority": {{...}},
+  }},
+  "service_needs": {{
+    "explicit_needs": {{{{...}}}},
+    "implicit_needs": {{{{...}}}},
+    "constraints": {{{{...}}}},
+    "priority": {{{{...}}}},
     "hypothesis": <string|null>,
     "labels": <string 配列>
-  },
+  }},
   "next_question": <string>
-}
+}}
