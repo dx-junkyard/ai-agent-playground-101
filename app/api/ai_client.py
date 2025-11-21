@@ -1,10 +1,12 @@
 import json
 import logging
+import os
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import requests
+from openai import OpenAI
 
 from config import AI_MODEL, AI_URL
 
@@ -26,12 +28,19 @@ class AIClient:
         self.model = model
         self.api_url = f"{base_url}/api/generate"
         self.prompt_path = Path(prompt_path) if prompt_path else self.PROMPT_PATH
-        logging.info(
-            "AIClient initialized with model: %s endpoint: %s prompt: %s",
-            model,
-            self.api_url,
-            self.prompt_path,
-        )
+        
+        self.openai_client = None
+        openai_api_key = os.environ.get("OPENAI_API_KEY")
+        if openai_api_key:
+            self.openai_client = OpenAI(api_key=openai_api_key)
+            logger.info("AIClient initialized with OpenAI API")
+        else:
+            logger.info(
+                "AIClient initialized with local LLM model: %s endpoint: %s prompt: %s",
+                model,
+                self.api_url,
+                self.prompt_path,
+            )
 
     def _load_prompt(self) -> str:
         try:
@@ -92,19 +101,35 @@ class AIClient:
         )
         logger.info("Prompt sent to LLM: %s", prompt)
 
-        try:
-            response = requests.post(
-                self.api_url,
-                json={"model": self.model, "prompt": prompt, "stream": False},
-                timeout=120,
-            )
-            response.raise_for_status()
-        except Exception as exc:  # pragma: no cover - 通信失敗時のログ
-            logger.error("[✗] LLM へのリクエストに失敗しました: %s", exc)
-            return None
+        if self.openai_client:
+            try:
+                response = self.openai_client.chat.completions.create(
+                    model="gpt-4o",  # You might want to make this configurable
+                    messages=[
+                        {"role": "system", "content": "You are a helpful assistant."}, # System prompt could be refined
+                        {"role": "user", "content": prompt}
+                    ],
+                    response_format={"type": "json_object"}
+                )
+                raw_text = response.choices[0].message.content.strip()
+                logger.info("OpenAI response raw text: %s", raw_text)
+            except Exception as exc:
+                logger.error("[✗] OpenAI API request failed: %s", exc)
+                return None
+        else:
+            try:
+                response = requests.post(
+                    self.api_url,
+                    json={"model": self.model, "prompt": prompt, "stream": False},
+                    timeout=120,
+                )
+                response.raise_for_status()
+                raw_text = response.json().get("response", "").strip()
+                logger.info("Local LLM response raw text: %s", raw_text)
+            except Exception as exc:  # pragma: no cover - 通信失敗時のログ
+                logger.error("[✗] LLM へのリクエストに失敗しました: %s", exc)
+                return None
 
-        raw_text = response.json().get("response", "").strip()
-        logger.info("LLM response raw text: %s", raw_text)
         parsed = self._extract_json(raw_text)
         if parsed is None:
             logger.error("LLM からの応答を JSON として解析できませんでした。")

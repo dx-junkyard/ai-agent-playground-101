@@ -2,6 +2,11 @@ from copy import deepcopy
 from fastapi import FastAPI, Request, HTTPException, Query
 from typing import Any, Dict, List, Optional
 import logging
+import os
+from dotenv import load_dotenv
+
+# .env ファイルを読み込む
+load_dotenv()
 
 from app.api.ai_client import AIClient
 from app.api.db import DBClient
