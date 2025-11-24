@@ -111,7 +111,11 @@ class DBClient:
                 ORDER BY id ASC
             """
             cursor.execute(query, (user_id, limit))
-            return cursor.fetchall()
+            rows = cursor.fetchall()
+            for row in rows:
+                if row.get("created_at"):
+                    row["created_at"] = row["created_at"].isoformat()
+            return rows
         except mysql.connector.Error as err:
             print(f"[✗] MySQL Error: {err}")
             return []

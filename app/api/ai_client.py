@@ -91,6 +91,17 @@ class AIClient:
         current_state: Dict[str, Any],
         latest_user_message: str,
     ) -> Optional[Dict[str, Any]]:
+        """
+        ユーザーとの対話を分析する（旧メソッド）。
+        
+        Args:
+            history (List[Dict[str, Any]]): 会話履歴
+            current_state (Dict[str, Any]): 現在の状態
+            latest_user_message (str): 最新のユーザーメッセージ
+            
+        Returns:
+            Optional[Dict[str, Any]]: 分析結果
+        """
         prompt_template = self._load_prompt()
         state_dump = json.dumps(current_state, ensure_ascii=False, indent=2)
         history_text = self._format_history(history)
@@ -127,6 +138,52 @@ class AIClient:
                 raw_text = response.json().get("response", "").strip()
                 logger.info("Local LLM response raw text: %s", raw_text)
             except Exception as exc:  # pragma: no cover - 通信失敗時のログ
+                logger.error("[✗] LLM へのリクエストに失敗しました: %s", exc)
+                return None
+
+        parsed = self._extract_json(raw_text)
+        if parsed is None:
+            logger.error("LLM からの応答を JSON として解析できませんでした。")
+        return parsed
+
+    def generate_response(self, prompt: str) -> Optional[Dict[str, Any]]:
+        """
+        LLMを使用して応答を生成する汎用メソッド。
+        
+        Args:
+            prompt (str): プロンプト
+            
+        Returns:
+            Optional[Dict[str, Any]]: 生成されたJSONレスポンス
+        """
+        logger.info("Prompt sent to LLM: %s", prompt)
+
+        if self.openai_client:
+            try:
+                response = self.openai_client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[
+                        {"role": "system", "content": "You are a helpful assistant."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    response_format={"type": "json_object"}
+                )
+                raw_text = response.choices[0].message.content.strip()
+                logger.info("OpenAI response raw text: %s", raw_text)
+            except Exception as exc:
+                logger.error("[✗] OpenAI API request failed: %s", exc)
+                return None
+        else:
+            try:
+                response = requests.post(
+                    self.api_url,
+                    json={"model": self.model, "prompt": prompt, "stream": False},
+                    timeout=120,
+                )
+                response.raise_for_status()
+                raw_text = response.json().get("response", "").strip()
+                logger.info("Local LLM response raw text: %s", raw_text)
+            except Exception as exc:
                 logger.error("[✗] LLM へのリクエストに失敗しました: %s", exc)
                 return None
 
