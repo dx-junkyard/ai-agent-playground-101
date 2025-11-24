@@ -2,13 +2,17 @@
 
 このプロジェクトは、AI エージェントと対話するための Web アプリケーションです。FastAPI バックエンドと Streamlit フロントエンドで構成されており、ブラウザからのチャット体験に加えて LINE ログインでユーザーを識別し、会話履歴を MySQL に保存できます。
 
+バックエンドは **LangGraph** を用いたコンポーネントベースのアーキテクチャを採用しており、状況整理、仮説生成、情報検索 (RAG)、応答設計といったプロセスを構造化して実行します。
+
 ## 学習内容
 
 - Streamlit を使用した Web フロントエンドの構築
 - FastAPI バックエンドとの連携
 - LINE ログイン (OAuth2) を利用したユーザー認証
 - データベースを用いた会話履歴の保存と取得
-- 外部 LLM（Ollama 互換 API）との連携
+- 外部 LLM（Ollama 互換 API または OpenAI API）との連携
+- **LangGraph を用いたエージェントワークフローの構築**
+- **コンポーネントベースのバックエンド設計**
 
 ## プロジェクト構成
 
@@ -17,8 +21,15 @@
 ├── app/
 │   ├── api/                    # FastAPI バックエンド
 │   │   ├── main.py             # API エンドポイント
+│   │   ├── workflow.py         # LangGraph ワークフロー定義
 │   │   ├── ai_client.py        # LLM への問い合わせロジック
-│   │   └── db.py               # MySQL とのやり取り
+│   │   ├── db.py               # MySQL とのやり取り
+│   │   ├── state_manager.py    # 会話状態管理
+│   │   └── components/         # エージェントコンポーネント
+│   │       ├── situation_analyzer.py   # 状況整理
+│   │       ├── hypothesis_generator.py # 仮説生成
+│   │       ├── rag_manager.py          # 情報検索 (RAG)
+│   │       └── response_planner.py     # 応答設計
 │   └── ui/                     # Streamlit フロントエンド
 │       ├── ui.py               # チャット画面
 │       └── line_login.py       # LINE ログインフロー
@@ -31,7 +42,10 @@
 ├── test/
 │   ├── api_test.sh             # API 動作確認用スクリプト
 │   ├── db_connect.sh           # DB 接続確認スクリプト
-│   └── ollama_test.sh          # LLM API 接続確認スクリプト
+│   ├── ollama_test.sh          # LLM API 接続確認スクリプト
+│   ├── test_components.py      # コンポーネント単体テスト
+│   ├── test_workflow.py        # ワークフロー統合テスト
+│   └── test_create_user.py     # ユーザー作成テスト
 ├── config.py                   # アプリ共通設定
 ├── requirements.api.txt        # API 用 Python 依存関係
 ├── requirements.ui.txt         # UI 用 Python 依存関係
@@ -43,16 +57,27 @@
 
 ## 主要なコンポーネント
 
-- **FastAPI バックエンド**: ユーザー登録、会話履歴の保存・取得、LLM への問い合わせを担当
+### バックエンドアーキテクチャ (LangGraph)
+
+バックエンドは以下の4つのコンポーネントと、それらを統括するワークフローで構成されています。
+
+1.  **SituationAnalyzer（状況整理）**: ユーザーの発話と会話履歴から、住民プロファイルとサービスニーズを更新します。
+2.  **HypothesisGenerator（仮説生成）**: 整理された状況から、必要なサービス候補の仮説を生成します。
+3.  **RAGManager（情報検索）**: 必要に応じて、仮説に基づいたサービス情報を検索します（現在はモック実装）。
+4.  **ResponsePlanner（応答設計）**: 分析結果と検索結果をもとに、ユーザーへの応答を計画・生成します。
+
+これらは `app/api/workflow.py` で定義されたグラフに従って実行されます。
+
+- **FastAPI バックエンド**: API エンドポイントを提供し、ワークフローを実行
 - **Streamlit フロントエンド**: LINE ログインとチャット UI を提供
-- **MySQL**: LINE アカウントと紐づくユーザー情報・会話履歴を保存
-- **LLM 連携**: `config.py` で指定した Ollama 互換エンドポイントから応答を生成
+- **MySQL**: LINE アカウントと紐づくユーザー情報・会話履歴・分析結果を保存
+- **LLM 連携**: OpenAI API または Ollama 互換エンドポイントを利用
 
 ## 実装のポイント
 
 ### バックエンド (FastAPI)
 - `/api/v1/users`: LINE ログイン後に呼び出し、ユーザー ID を払い出す
-- `/api/v1/user-message`: ユーザーのメッセージを受け取り LLM 応答を返却・DB に保存
+- `/api/v1/user-message`: ユーザーのメッセージを受け取り、LangGraph ワークフローを実行して応答を返却
 - `/api/v1/user-messages`: 指定ユーザーの直近メッセージ履歴を取得
 
 ### フロントエンド (Streamlit)
@@ -66,7 +91,7 @@
 
 - Docker / Docker Compose が利用可能な環境
 - LINE ログインチャネル（チャンネル ID・シークレット）
-- Ollama などの LLM 推論エンドポイント（デフォルトは `http://host.docker.internal:11434`）
+- OpenAI API Key または Ollama などの LLM 推論エンドポイント
 
 ### セットアップ手順
 
@@ -78,7 +103,7 @@
 
 2. **環境変数の設定**
     - `.env.example` を `.env` にコピーし、以下を設定します
-        - `OPENAI_API_KEY`: LLM アクセス用キー（必要に応じて）
+        - `OPENAI_API_KEY`: LLM アクセス用キー（設定されている場合は優先的に使用されます）
         - `LINE_CHANNEL_ID`, `LINE_CHANNEL_SECRET`, `LINE_REDIRECT_URI`
     - `config.py` の `AI_URL` / `AI_MODEL` を使用する LLM に合わせて変更します
 
@@ -123,11 +148,18 @@ curl 'http://localhost:8086/api/v1/user-messages?user_id=<user_id>&limit=10'
 
 ## 開発
 
-### ローカルでの確認
+### テストの実行
 
-- `test/api_test.sh`: API エンドポイントの疎通確認
-- `test/db_connect.sh`: MySQL 接続確認
-- `test/ollama_test.sh`: LLM エンドポイントへのリクエスト確認
+```bash
+# 仮想環境の作成と依存関係のインストール
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.api.txt
+pip install pytest
+
+# テストの実行
+python -m pytest test/
+```
 
 ### トラブルシューティング
 
@@ -135,13 +167,13 @@ curl 'http://localhost:8086/api/v1/user-messages?user_id=<user_id>&limit=10'
 
 ### コード修正時のポイント
 
-- `app/api/ai_client.py` のプロンプトは `static/prompt.txt` から読み込み
-- `app/ui/line_login.py` で LINE OAuth のコールバック処理とユーザー登録を実施
-- 依存関係を追加する場合は各 `requirements.*.txt` を更新してください
+- コンポーネントのロジックは `app/api/components/` 配下の各ファイルを修正してください。
+- ワークフローの定義は `app/api/workflow.py` にあります。
+- `app/api/ai_client.py` は LLM との通信を抽象化しています。
 
 ## 拡張アイデア
 
-- 音声入力・読み上げ機能の追加
+- RAGManager の実実装（Vector DB との連携）
 - 複数 LLM の切り替え UI
 - 会話履歴の検索／エクスポート
 - LINE 上での直接応答
