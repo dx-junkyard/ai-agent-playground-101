@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 # Add app to path
-sys.path.append(str(Path(__file__).resolve().parents[1]))
+sys.path.append(str(Path(__file__).resolve().parents[3]))
 
 from app.api.ai_client import AIClient
 

@@ -4,7 +4,7 @@ from pathlib import Path
 from copy import deepcopy
 
 # Add project root to path
-sys.path.append(str(Path(__file__).resolve().parents[1]))
+sys.path.append(str(Path(__file__).resolve().parents[3]))
 
 from app.api.state_manager import StateManager
 

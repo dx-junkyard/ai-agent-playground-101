@@ -1,4 +1,5 @@
 from copy import deepcopy
+import json
 from fastapi import FastAPI, Request, HTTPException, Query
 from typing import Any, Dict, List, Optional
 import logging
@@ -104,6 +105,51 @@ async def get_user_messages(user_id: str = Query(..., description="ユーザーI
     repo = DBClient()
     messages = repo.get_user_messages(user_id=user_id, limit=limit)
     return messages
+
+from fastapi import UploadFile, File
+from app.api.components.catalog_manager import CatalogManager
+
+@app.post("/api/v1/service-catalog/import")
+async def import_service_catalog(file: UploadFile = File(...)):
+    """
+    サービスカタログ（JSON）をインポートする。
+    EmbeddingはLLM APIを使用して生成される。
+    """
+    try:
+        content = await file.read()
+        catalog_data = json.loads(content)
+        
+        if not isinstance(catalog_data, list):
+            # Try to handle if wrapped in a key like "services" or similar, or just error
+            # Based on previous file, it was a list.
+            raise HTTPException(status_code=400, detail="JSON must be a list of service entries")
+            
+        manager = CatalogManager()
+        result = manager.import_catalog(catalog_data)
+        
+        return result
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON file")
+    except Exception as e:
+        logger.error(f"Import failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/v1/service-catalog/reset")
+async def reset_service_catalog():
+    """
+    サービスカタログをリセットする（DBとQdrantをクリア）。
+    """
+    try:
+        manager = CatalogManager()
+        result = manager.reset_catalog()
+        
+        if result["status"] == "error":
+            raise HTTPException(status_code=500, detail=result)
+            
+        return result
+    except Exception as e:
+        logger.error(f"Reset failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn

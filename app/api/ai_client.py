@@ -31,6 +31,14 @@ class AIClient:
         
         self.openai_client = None
         openai_api_key = os.environ.get("OPENAI_API_KEY")
+        
+        # Debug logging for API key status
+        if openai_api_key:
+            masked_key = openai_api_key[:4] + "*" * 4 + openai_api_key[-4:] if len(openai_api_key) > 8 else "****"
+            logger.info(f"OPENAI_API_KEY found: {masked_key}")
+        else:
+            logger.warning("OPENAI_API_KEY not found in environment variables.")
+
         if openai_api_key:
             self.openai_client = OpenAI(api_key=openai_api_key)
             logger.info("AIClient initialized with OpenAI API")
@@ -115,7 +123,7 @@ class AIClient:
         if self.openai_client:
             try:
                 response = self.openai_client.chat.completions.create(
-                    model="gpt-4o",  # You might want to make this configurable
+                    model="gpt-5-mini",  # You might want to make this configurable
                     messages=[
                         {"role": "system", "content": "You are a helpful assistant."}, # System prompt could be refined
                         {"role": "user", "content": prompt}
@@ -161,7 +169,7 @@ class AIClient:
         if self.openai_client:
             try:
                 response = self.openai_client.chat.completions.create(
-                    model="gpt-4o",
+                    model="gpt-5-mini",
                     messages=[
                         {"role": "system", "content": "You are a helpful assistant."},
                         {"role": "user", "content": prompt}
@@ -191,3 +199,26 @@ class AIClient:
         if parsed is None:
             logger.error("LLM からの応答を JSON として解析できませんでした。")
         return parsed
+
+    def get_embedding(self, text: str) -> List[float]:
+        """
+        テキストの埋め込みベクトルを生成する。
+        
+        Args:
+            text (str): 入力テキスト
+            
+        Returns:
+            List[float]: 埋め込みベクトル
+        """
+        text = text.replace("\n", " ")
+        if self.openai_client:
+            try:
+                return self.openai_client.embeddings.create(input=[text], model="text-embedding-3-small").data[0].embedding
+            except Exception as exc:
+                logger.error("[✗] OpenAI Embedding request failed: %s", exc)
+                return []
+        else:
+            # Local LLM embedding support (optional, for now return empty or implement if needed)
+            # For this task, we assume OpenAI is used for embeddings as per previous context.
+            logger.warning("Local LLM embedding not fully implemented, returning empty list.")
+            return []

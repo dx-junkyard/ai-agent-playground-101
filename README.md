@@ -39,10 +39,12 @@
 │   └── db/
 │       ├── schema.sql          # users テーブル DDL
 │       └── user_messages.sql   # user_messages テーブル DDL
-├── test/
-│   ├── api_test.sh             # API 動作確認用スクリプト
-│   ├── db_connect.sh           # DB 接続確認スクリプト
-│   ├── ollama_test.sh          # LLM API 接続確認スクリプト
+├── scripts/                # スクリプト群
+│   ├── ops/                # 運用ツール (reset_catalog.sh 等)
+│   └── test/
+│       ├── manual/         # 手動検証用スクリプト
+│       └── system/         # システムテスト実行スクリプト
+├── test/                   # pytest テストコード
 │   ├── test_components.py      # コンポーネント単体テスト
 │   ├── test_workflow.py        # ワークフロー統合テスト
 │   └── test_create_user.py     # ユーザー作成テスト
@@ -63,14 +65,15 @@
 
 1.  **SituationAnalyzer（状況整理）**: ユーザーの発話と会話履歴から、住民プロファイルとサービスニーズを更新します。
 2.  **HypothesisGenerator（仮説生成）**: 整理された状況から、必要なサービス候補の仮説を生成します。
-3.  **RAGManager（情報検索）**: 必要に応じて、仮説に基づいたサービス情報を検索します（現在はモック実装）。
+- **RAGManager（情報検索）**: Qdrant (Vector DB) を使用して、仮説に基づいたサービス情報を検索します。
 4.  **ResponsePlanner（応答設計）**: 分析結果と検索結果をもとに、ユーザーへの応答を計画・生成します。
 
 これらは `app/api/workflow.py` で定義されたグラフに従って実行されます。
 
 - **FastAPI バックエンド**: API エンドポイントを提供し、ワークフローを実行
 - **Streamlit フロントエンド**: LINE ログインとチャット UI を提供
-- **MySQL**: LINE アカウントと紐づくユーザー情報・会話履歴・分析結果を保存
+- **MySQL**: LINE アカウントと紐づくユーザー情報・会話履歴・分析結果、および**サービスカタログ**を保存
+- **Qdrant**: サービスカタログのベクトルインデックスを保存し、セマンティック検索を提供
 - **LLM 連携**: OpenAI API または Ollama 互換エンドポイントを利用
 
 ## 実装のポイント
@@ -79,6 +82,7 @@
 - `/api/v1/users`: LINE ログイン後に呼び出し、ユーザー ID を払い出す
 - `/api/v1/user-message`: ユーザーのメッセージを受け取り、LangGraph ワークフローを実行して応答を返却
 - `/api/v1/user-messages`: 指定ユーザーの直近メッセージ履歴を取得
+- **`/api/v1/service-catalog/import`**: サービスカタログ (JSON) をインポートし、Embedding を生成して DB/Qdrant に保存
 
 ### フロントエンド (Streamlit)
 - LINE ログインで取得したプロフィールをバックエンドに登録
@@ -91,7 +95,8 @@
 
 - Docker / Docker Compose が利用可能な環境
 - LINE ログインチャネル（チャンネル ID・シークレット）
-- OpenAI API Key または Ollama などの LLM 推論エンドポイント
+- **OpenAI API Key** (RAG の Embedding 生成に必須)
+- Ollama などの LLM 推論エンドポイント (オプション、推論に OpenAI を使わない場合)
 
 ### セットアップ手順
 
@@ -103,7 +108,7 @@
 
 2. **環境変数の設定**
     - `.env.example` を `.env` にコピーし、以下を設定します
-        - `OPENAI_API_KEY`: LLM アクセス用キー（設定されている場合は優先的に使用されます）
+        - `OPENAI_API_KEY`: **必須** (Embedding 生成および LLM 推論に使用)
         - `LINE_CHANNEL_ID`, `LINE_CHANNEL_SECRET`, `LINE_REDIRECT_URI`
     - `config.py` の `AI_URL` / `AI_MODEL` を使用する LLM に合わせて変更します
 
@@ -111,11 +116,13 @@
     ```bash
     docker compose up --build
     ```
+    ※ 初回起動時は MySQL と Qdrant の初期化が行われます。
 
 4. **アプリケーションへのアクセス**
     - UI: http://localhost:8080
     - API: http://localhost:8086
     - MySQL: localhost:3306（ユーザー名 `me`、パスワード `me`）
+    - Qdrant: http://localhost:6333
 
 ## 使い方
 
@@ -125,6 +132,17 @@
 2. 表示される LINE ログインリンクから認証
 3. チャット欄にメッセージを入力して送信
 4. AI からの応答と会話履歴が画面に表示されます
+
+### サービスカタログのインポート
+
+RAG 機能を使用するには、事前にサービスカタログデータをインポートする必要があります。
+
+```bash
+curl -X POST "http://localhost:8086/api/v1/service-catalog/import" \
+     -H "accept: application/json" \
+     -H "Content-Type: multipart/form-data" \
+     -F "file=@static/data/kosodate_and_kyoiku_service_catalog.mini.json"
+```
 
 ### API の直接利用
 
@@ -148,8 +166,11 @@ curl 'http://localhost:8086/api/v1/user-messages?user_id=<user_id>&limit=10'
 
 ## 開発
 
+## 開発
+
 ### テストの実行
 
+#### システムテスト (pytest)
 ```bash
 # 仮想環境の作成と依存関係のインストール
 python -m venv venv
@@ -158,8 +179,19 @@ pip install -r requirements.api.txt
 pip install pytest
 
 # テストの実行
-python -m pytest test/
+./scripts/test/system/run_tests.sh
 ```
+
+#### 手動テスト・検証
+`scripts/test/manual/` 配下に検証用スクリプトがあります。
+- `api_test.sh`: API エンドポイントの動作確認
+- `db_connect.sh`: DB 接続確認
+- `ollama_test.sh`: LLM 接続確認
+- `test_rag.py`: RAG 検索ロジックの検証
+
+### 運用ツール
+`scripts/ops/` 配下に運用スクリプトがあります。
+- `reset_catalog.sh`: サービスカタログのリセット
 
 ### トラブルシューティング
 
@@ -173,7 +205,6 @@ python -m pytest test/
 
 ## 拡張アイデア
 
-- RAGManager の実実装（Vector DB との連携）
 - 複数 LLM の切り替え UI
 - 会話履歴の検索／エクスポート
 - LINE 上での直接応答

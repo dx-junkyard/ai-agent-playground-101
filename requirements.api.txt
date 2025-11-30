@@ -7,3 +7,5 @@ python-dotenv
 beautifulsoup4
 langgraph
 langchain-core
+qdrant-client
+python-multipart
