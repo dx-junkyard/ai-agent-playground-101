@@ -44,10 +44,7 @@
 │   └── test/
 │       ├── manual/         # 手動検証用スクリプト
 │       └── system/         # システムテスト実行スクリプト
-├── test/                   # pytest テストコード
-│   ├── test_components.py      # コンポーネント単体テスト
-│   ├── test_workflow.py        # ワークフロー統合テスト
-│   └── test_create_user.py     # ユーザー作成テスト
+├── test/                   # (空: scripts/test/system に移動済み)
 ├── config.py                   # アプリ共通設定
 ├── requirements.api.txt        # API 用 Python 依存関係
 ├── requirements.ui.txt         # UI 用 Python 依存関係
@@ -83,6 +80,7 @@
 - `/api/v1/user-message`: ユーザーのメッセージを受け取り、LangGraph ワークフローを実行して応答を返却
 - `/api/v1/user-messages`: 指定ユーザーの直近メッセージ履歴を取得
 - **`/api/v1/service-catalog/import`**: サービスカタログ (JSON) をインポートし、Embedding を生成して DB/Qdrant に保存
+- **`/api/v1/service-catalog/reset`**: サービスカタログデータをリセット (DELETE)
 
 ### フロントエンド (Streamlit)
 - LINE ログインで取得したプロフィールをバックエンドに登録
@@ -133,8 +131,9 @@
 3. チャット欄にメッセージを入力して送信
 4. AI からの応答と会話履歴が画面に表示されます
 
-### サービスカタログのインポート
+### サービスカタログの管理
 
+#### インポート
 RAG 機能を使用するには、事前にサービスカタログデータをインポートする必要があります。
 
 ```bash
@@ -142,6 +141,13 @@ curl -X POST "http://localhost:8086/api/v1/service-catalog/import" \
      -H "accept: application/json" \
      -H "Content-Type: multipart/form-data" \
      -F "file=@static/data/kosodate_and_kyoiku_service_catalog.mini.json"
+```
+
+#### リセット
+カタログデータを全て消去して初期状態に戻す場合に使用します。
+
+```bash
+curl -X DELETE "http://localhost:8086/api/v1/service-catalog/reset"
 ```
 
 ### API の直接利用
@@ -166,7 +172,7 @@ curl 'http://localhost:8086/api/v1/user-messages?user_id=<user_id>&limit=10'
 
 ## 開発
 
-## 開発
+
 
 ### テストの実行
 
