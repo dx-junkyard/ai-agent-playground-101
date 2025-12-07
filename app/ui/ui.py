@@ -22,7 +22,7 @@ class ChatUI:
         try:
             resp = requests.post(API_URL, json=payload)
             resp.raise_for_status()
-            return resp.text.strip()
+            return resp.json()
         except Exception as e:
             st.error(f"送信エラー: {e}")
             return "エラーが発生しました"
@@ -33,6 +33,15 @@ class ChatUI:
             st.experimental_rerun()
         else:
             st.rerun()
+
+    def _format_message(self, text: str) -> str:
+        """
+        Streamlitのmarkdown表示用にテキストを整形する。
+        改行コードを末尾スペース2つ+改行に変換して、強制的に改行させる。
+        """
+        if not text:
+            return ""
+        return text.replace("\n", "  \n")
 
     def run(self):
         ensure_login()
@@ -56,19 +65,19 @@ class ChatUI:
 
         for m in st.session_state.messages:
             with st.chat_message("user" if m["role"] == "user" else "ai"):
-                st.markdown(m["content"])
+                st.markdown(self._format_message(m["content"]))
 
         prompt = st.chat_input("メッセージを入力...")
 
         if prompt:
             st.session_state.messages.append({"role": "user", "content": prompt})
             with st.chat_message("user"):
-                st.markdown(prompt)
+                st.markdown(self._format_message(prompt))
 
             reply = self.call_api(prompt)
             st.session_state.messages.append({"role": "assistant", "content": reply})
             with st.chat_message("ai"):
-                st.markdown(reply)
+                st.markdown(self._format_message(reply))
 
 
 def main():
