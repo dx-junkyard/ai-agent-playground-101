@@ -104,6 +104,7 @@
 ### バックエンド (FastAPI)
 - `/api/v1/users`: LINE ログイン後に呼び出し、ユーザー ID を払い出す
 - `/api/v1/user-message`: ユーザーのメッセージを受け取り、LangGraph ワークフローを実行して応答を返却
+- **`/api/v1/user-message-stream`**: LangGraph の実行状況と応答をリアルタイムでストリーミング配信 (NDJSON)
 - `/api/v1/user-messages`: 指定ユーザーの直近メッセージ履歴を取得
 - **`/api/v1/service-catalog/import`**: サービスカタログ (JSON) をインポートし、Embedding を生成して DB/Qdrant に保存
 - **`/api/v1/service-catalog/reset`**: サービスカタログデータをリセット (DELETE)
@@ -111,6 +112,7 @@
 ### フロントエンド (Streamlit)
 - LINE ログインで取得したプロフィールをバックエンドに登録
 - チャット UI から API を呼び出し、会話を表示
+- **リアルタイム処理状況表示**: ストリーミング API を利用し、AI の思考プロセス（状況整理、仮説生成など）を可視化
 - `API_URL` 環境変数で接続先 API を切り替え可能
 
 ## セットアップ
@@ -126,7 +128,7 @@
 
 1. **リポジトリのクローン**
     ```bash
-    git clone https://github.com/dx-junkyard/ai-agent-playground-101.git
+    git clone -b streaming-response [https://github.com/dx-junkyard/ai-agent-playground-101.git](https://github.com/dx-junkyard/ai-agent-playground-101.git)
     cd ai-agent-playground-101
     ```
 
