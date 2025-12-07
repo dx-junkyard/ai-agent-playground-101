@@ -1,38 +1,32 @@
 import logging
 import os
 import requests
+import json
 import streamlit as st
 
 from line_login import ensure_login
 
 logger = logging.getLogger(__name__)
 
-API_URL = os.environ.get("API_URL", "http://api:8000/api/v1/user-message")
-
 
 class ChatUI:
     """Main chat UI handling text and voice input."""
-
+    
+    API_URL = os.environ.get("API_URL", "http://api:8000/api/v1/user-message-stream")
 
     @staticmethod
-    def call_api(text: str) -> str:
+    def call_api_stream(text: str):
         payload = {"message": text}
         if "user_id" in st.session_state:
             payload["user_id"] = st.session_state["user_id"]
+        
         try:
-            resp = requests.post(API_URL, json=payload)
-            resp.raise_for_status()
-            return resp.json()
+            with requests.post(ChatUI.API_URL, json=payload, stream=True) as resp:
+                resp.raise_for_status()
+                yield from resp.iter_lines()
         except Exception as e:
             st.error(f"送信エラー: {e}")
-            return "エラーが発生しました"
-
-    def _rerun(self):
-        """Rerun Streamlit script with backward compatibility."""
-        if hasattr(st, "experimental_rerun"):
-            st.experimental_rerun()
-        else:
-            st.rerun()
+            yield None
 
     def _format_message(self, text: str) -> str:
         """
@@ -57,9 +51,43 @@ class ChatUI:
             if text and not st.session_state.voice_processed:
                 st.session_state.voice_processed = True
                 st.session_state.messages.append({"role": "user", "content": text})
-                reply = self.call_api(text)
-                st.session_state.messages.append({"role": "assistant", "content": reply})
+                
+                # Handling streaming manually inside audio branch if needed. 
+                # For simplicity, assuming audio flow needs updating too or we just focus on text input loop below.
+                # Since user requested "ChatUI" mainly. Let's update main loop logic.
+                # Audio path using old call_api logic might break if we change API_URL globally or remove call_api.
+                # Let's keep call_api for compatibility or refactor audio path too.
+                # But to follow instructions strictly, I'll update the main prompt text flow primarily.
+                # Ideally audio path should also use stream. 
+                
+                # Refactoring audio bit:
+                reply_text = ""
+                with st.chat_message("user"):
+                    st.markdown(self._format_message(text))
+                
+                with st.chat_message("ai"):
+                    status_placeholder = st.status("処理を開始します...", expanded=True)
+                    try:
+                        for line in self.call_api_stream(text):
+                            if not line: continue
+                            data = json.loads(line)
+                            if data["type"] == "progress":
+                                status_placeholder.write(data["message"])
+                                status_placeholder.update(label=data["message"])
+                            elif data["type"] == "result":
+                                reply_text = data["message"]
+                                status_placeholder.update(label="完了しました！", state="complete", expanded=False)
+                    except Exception as e:
+                        import traceback
+                        logger.error(f"Stream error: {e}")
+                        logger.error(traceback.format_exc())
+                        reply_text = f"エラーが発生しました: {e}"
+                    
+                    st.markdown(self._format_message(reply_text))
+                
+                st.session_state.messages.append({"role": "assistant", "content": reply_text})
                 self._rerun()
+
             elif not text:
                 st.session_state.voice_processed = False
 
@@ -74,10 +102,28 @@ class ChatUI:
             with st.chat_message("user"):
                 st.markdown(self._format_message(prompt))
 
-            reply = self.call_api(prompt)
-            st.session_state.messages.append({"role": "assistant", "content": reply})
             with st.chat_message("ai"):
-                st.markdown(self._format_message(reply))
+                status_placeholder = st.status("処理を開始します...", expanded=True)
+                reply_text = ""
+                try:
+                    for line in self.call_api_stream(prompt):
+                        if not line: continue
+                        data = json.loads(line)
+                        if data["type"] == "progress":
+                            status_placeholder.write(data["message"])
+                            status_placeholder.update(label=data["message"])
+                        elif data["type"] == "result":
+                            reply_text = data["message"]
+                            status_placeholder.update(label="完了しました！", state="complete", expanded=False)
+                except Exception as e:
+                    import traceback
+                    logger.error(f"Stream error: {e}")
+                    logger.error(traceback.format_exc())
+                    reply_text = f"エラーが発生しました: {e}"
+                
+                st.markdown(self._format_message(reply_text))
+
+            st.session_state.messages.append({"role": "assistant", "content": reply_text})
 
 
 def main():
