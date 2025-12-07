@@ -57,7 +57,7 @@ class AIClient:
             logger.error("Failed to read prompt template: %s", exc)
             return (
                 "あなたは住民との対話を分析するアシスタントです。"
-                "\n現在の状態: {current_state}\n会話履歴: {conversation_history}\n最新発言: {latest_user_message}"
+                "\n現在の状態: {current_state}\n会話の流れの要約: {conversation_summary}\n最新発言: {latest_user_message}"
             )
 
     @staticmethod
@@ -115,7 +115,7 @@ class AIClient:
         history_text = self._format_history(history)
         prompt = prompt_template.format(
             current_state=state_dump,
-            conversation_history=history_text,
+            conversation_summary=history_text,
             latest_user_message=latest_user_message,
         )
         logger.info("Prompt sent to LLM: %s", prompt)
