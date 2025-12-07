@@ -75,6 +75,7 @@ class RAGManager:
                         "hypothesis_id": hypothesis.get("id"),
                         "service_id": service_id,
                         "name": service_details.get("title"),
+                        "url": service_details.get("url"), # URLを追加
                         "summary": service_details.get("service_content") or service_details.get("conditions") or "詳細なし",
                         "conditions": {
                             "target": service_details.get("target"),
