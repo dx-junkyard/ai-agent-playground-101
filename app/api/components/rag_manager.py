@@ -7,34 +7,18 @@ from app.api.ai_client import AIClient
 class RAGManager:
     """
     RAG（検索拡張生成）管理コンポーネント。
-    必要な仮説に対し、サービスカタログ等から候補情報を取得する。
     """
-    def __init__(self):
+    def __init__(self, ai_client: AIClient):
         self.qdrant_host = os.getenv("QDRANT_HOST", "localhost")
         self.qdrant_port = int(os.getenv("QDRANT_PORT", 6333))
         self.collection_name = "service_catalog"
         self.qdrant_client = QdrantClient(host=self.qdrant_host, port=self.qdrant_port)
         self.db_client = DBClient()
-        # We need an AIClient to generate embeddings for queries
-        # Assuming AIClient has a method for embeddings or we use OpenAI directly here
-        # For consistency, let's instantiate AIClient if it has embedding capability, 
-        # but looking at ai_client.py it might be just for chat.
-        # Let's use OpenAI client directly for embeddings as in the ingestion script
-        # or better, check if AIClient supports it. 
-        # Since we don't have AIClient passed in __init__ in workflow.py, we might need to instantiate it or use openai directly.
-        # For now, let's assume we use openai directly for query embedding to match the ingestion script's logic (which used pre-computed embeddings but implies openai).
-        from openai import OpenAI
-        self.openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        self.ai_client = ai_client
 
     def retrieve_knowledge(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """
         仮説に基づいて知識を検索する。
-
-        Args:
-            context (Dict[str, Any]): 現在の会話コンテキスト
-
-        Returns:
-            Dict[str, Any]: 検索結果が追加されたコンテキスト
         """
         hypotheses = context.get("hypotheses", [])
         retrieval_evidence = {"service_candidates": []}
@@ -49,17 +33,30 @@ class RAGManager:
 
     def _get_embedding(self, text: str) -> List[float]:
         text = text.replace("\n", " ")
-        return self.openai_client.embeddings.create(input=[text], model="text-embedding-3-small").data[0].embedding
+        # Changed from self.openai_client to self.ai_client based on the __init__ modification
+        return self.ai_client.get_embedding(text)
 
     def _search_services(self, hypothesis: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         仮説に基づいてサービスを検索する。
         """
-        query_text = hypothesis.get("reasoning", "") or hypothesis.get("hypothesis", "")
+        # 修正箇所: search_query を優先的に使用
+        query_text = hypothesis.get("search_query")
+        
+        # search_queryが無い場合のフォールバック（reasoning や likely_services を連結）
+        if not query_text:
+            parts = []
+            if hypothesis.get("reasoning"):
+                parts.append(hypothesis.get("reasoning"))
+            if hypothesis.get("likely_services"):
+                parts.extend(hypothesis.get("likely_services"))
+            query_text = " ".join(parts)
+
         if not query_text:
             return []
 
         try:
+            # クエリのベクトル化と検索
             query_vector = self._get_embedding(query_text)
             
             search_result = self.qdrant_client.query_points(
@@ -71,7 +68,6 @@ class RAGManager:
             results = []
             for hit in search_result.points:
                 service_id = hit.id
-                # Fetch full details from MySQL
                 service_details = self.db_client.get_service_by_id(service_id)
                 
                 if service_details:

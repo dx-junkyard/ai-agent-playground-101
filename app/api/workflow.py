@@ -37,7 +37,7 @@ class WorkflowManager:
     def __init__(self, ai_client: AIClient):
         self.situation_analyzer = SituationAnalyzer(ai_client)
         self.hypothesis_generator = HypothesisGenerator(ai_client)
-        self.rag_manager = RAGManager()
+        self.rag_manager = RAGManager(ai_client)
         self.response_planner = ResponsePlanner(ai_client)
         self.graph = self._build_graph()
 

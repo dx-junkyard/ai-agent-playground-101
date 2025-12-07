@@ -4,8 +4,8 @@
 【現在把握しているステータス（最新）】
 {current_state}
 
-【会話履歴（新しい順ではなく時系列順）】
-{conversation_history}
+【会話の流れの要約】
+{conversation_summary}
 
 【今回のユーザーからの回答】
 {latest_user_message}
