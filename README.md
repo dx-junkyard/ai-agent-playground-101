@@ -33,7 +33,7 @@
 │   └── ui/                     # Streamlit フロントエンド
 │       ├── ui.py               # チャット画面
 │       └── line_login.py       # LINE ログインフロー
-├── static/prompt.txt           # LLM へ送るプロンプトテンプレート
+├── static/prompts/             # LLM プロンプトテンプレート
 ├── mysql/
 │   ├── my.cnf                  # MySQL 設定
 │   └── db/

@@ -1,5 +1,7 @@
 import json
+from pathlib import Path
 from typing import Dict, Any
+from langchain_core.prompts import PromptTemplate
 from app.api.ai_client import AIClient
 
 class HypothesisGenerator:
@@ -9,6 +11,9 @@ class HypothesisGenerator:
     """
     def __init__(self, ai_client: AIClient):
         self.ai_client = ai_client
+        # プロンプトファイルのパス解決 (project_root/static/prompts/hypothesis_generation.txt)
+        prompt_path = Path(__file__).resolve().parents[3] / "static/prompts/hypothesis_generation.txt"
+        self.prompt_template = PromptTemplate.from_file(prompt_path)
 
     def generate(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -32,25 +37,11 @@ class HypothesisGenerator:
         """
         LLMへのプロンプトを作成する。
         """
-        return f"""
-        あなたは自治体サービスの案内チャットボットの「仮説生成」コンポーネントです。
-        現在の住民プロファイルとサービスニーズから、必要なサービス候補群を仮説化してください。
+        # テンプレートに渡す変数を事前にJSON文字列化
+        resident_profile_str = json.dumps(context['resident_profile'], ensure_ascii=False, indent=2)
+        service_needs_str = json.dumps(context['service_needs'], ensure_ascii=False, indent=2)
 
-        現在の状態:
-        {json.dumps(context['resident_profile'], ensure_ascii=False, indent=2)}
-        {json.dumps(context['service_needs'], ensure_ascii=False, indent=2)}
-
-        以下のJSON形式で出力してください:
-        {{
-            "hypotheses": [
-                {{
-                    "id": "H1",
-                    "need_label": "ニーズのラベル",
-                    "likely_services": ["サービス名候補1", "サービス名候補2"],
-                    "confidence": 0.0から1.0の信頼度,
-                    "missing_info": ["不足している情報1", "不足している情報2"],
-                    "should_call_rag": true または false
-                }}
-            ]
-        }}
-        """
+        return self.prompt_template.format(
+            resident_profile=resident_profile_str,
+            service_needs=service_needs_str
+        )
