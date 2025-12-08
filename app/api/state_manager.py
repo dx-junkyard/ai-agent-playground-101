@@ -149,5 +149,6 @@ class StateManager:
             "service_needs": cls.deep_merge(cls.DEFAULT_SERVICE_NEEDS, service_needs),
             "hypotheses": [],
             "retrieval_evidence": {},
+            "conversation_summary": "",
             "bot_message": None
         }

@@ -39,6 +39,11 @@ class SituationAnalyzer:
             if normalized_analysis:
                 context["resident_profile"] = normalized_analysis["resident_profile"]
                 context["service_needs"] = normalized_analysis["service_needs"]
+            
+            # Save updated conversation summary if present
+            if "conversation_summary" in analysis_result:
+                context["conversation_summary"] = analysis_result["conversation_summary"]
+                
         return context
 
     def _create_prompt(self, context: Dict[str, Any]) -> str:
@@ -51,24 +56,20 @@ class SituationAnalyzer:
         }
         
         state_dump = json.dumps(current_state, ensure_ascii=False, indent=2)
-        history_text = self._format_history(context.get("dialog_history", []))
+        conversation_summary = context.get("conversation_summary", "")
         latest_user_message = context.get("user_message", "")
+        
+        # Get last AI message from history
+        history = context.get("dialog_history", [])
+        last_ai_message = "（会話開始）"
+        for msg in reversed(history):
+            if msg.get("role") == "assistant" or msg.get("role") == "ai":
+                last_ai_message = msg.get("content", "") or msg.get("message", "")
+                break
 
         return self.prompt_template.format(
             current_state=state_dump,
-            conversation_summary=history_text,
+            conversation_summary=conversation_summary,
+            last_ai_message=last_ai_message,
             latest_user_message=latest_user_message
         )
-
-    def _format_history(self, history: List[Dict[str, Any]]) -> str:
-        """
-        会話履歴をテキスト形式に整形する。
-        """
-        if not history:
-            return "会話履歴はまだありません。"
-        lines: List[str] = []
-        for item in history:
-            role = "ユーザー" if item.get("role") == "user" else "AI"
-            message = item.get("message", "")
-            lines.append(f"{role}: {message}")
-        return "\n".join(lines)

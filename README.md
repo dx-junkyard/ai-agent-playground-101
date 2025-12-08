@@ -163,12 +163,10 @@
 
 #### インポート
 RAG 機能を使用するには、事前にサービスカタログデータをインポートする必要があります。
+`static/data/service_catalog.json` が用意されていることを確認し、以下のスクリプトを実行してください。
 
 ```bash
-curl -X POST "http://localhost:8086/api/v1/service-catalog/import" \
-     -H "accept: application/json" \
-     -H "Content-Type: multipart/form-data" \
-     -F "file=@static/data/kosodate_and_kyoiku_service_catalog.mini.json"
+sh ./scripts/ops/import_catalog.sh
 ```
 
 #### リセット
