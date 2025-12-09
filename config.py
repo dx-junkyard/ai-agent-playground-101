@@ -3,7 +3,7 @@
 
 import os
 
-LLM_MODEL = os.getenv("LLM_MODEL", "schroneko/llama-3.1-swallow-8b-instruct-v0.1:latest")
+LLM_MODEL = os.getenv("LLM_MODEL", "gpt-5-nano")
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
 EMBEDDING_DIMENSION = int(os.getenv("EMBEDDING_DIMENSION", 1536))
 AI_URL = "http://host.docker.internal:11434"
