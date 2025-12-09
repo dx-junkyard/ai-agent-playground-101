@@ -8,6 +8,7 @@ from qdrant_client.models import PointStruct, VectorParams, Distance
 
 from app.api.db import DBClient
 from app.api.ai_client import AIClient
+from config import EMBEDDING_DIMENSION
 
 class CatalogManager:
     """
@@ -22,7 +23,7 @@ class CatalogManager:
         self.qdrant_port = int(os.getenv("QDRANT_PORT", 6333))
         self.collection_name = "service_catalog"
         self.qdrant_client = QdrantClient(host=self.qdrant_host, port=self.qdrant_port)
-        self.vector_size = 1536 # OpenAI text-embedding-3-small size
+        self.vector_size = EMBEDDING_DIMENSION # Configurable vector size
 
     def _setup_qdrant_collection(self):
         """Qdrantのコレクションが存在しない場合は作成する"""

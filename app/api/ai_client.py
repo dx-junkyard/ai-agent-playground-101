@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 import requests
 from openai import OpenAI
 
-from config import AI_MODEL, AI_URL
+from config import AI_URL, LLM_MODEL, EMBEDDING_MODEL
 
 # ログ設定（必要に応じてレベルを DEBUG に変更可能）
 logging.basicConfig(
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class AIClient:
     """LLM を利用してユーザー情報の整理と次の質問を生成するクラス。"""
 
-    def __init__(self, model: str = AI_MODEL, base_url: str = AI_URL) -> None:
+    def __init__(self, model: str = LLM_MODEL, base_url: str = AI_URL) -> None:
         self.model = model
         self.api_url = f"{base_url}/api/generate"
         
@@ -83,7 +83,7 @@ class AIClient:
         if self.openai_client:
             try:
                 response = self.openai_client.chat.completions.create(
-                    model="gpt-5-mini",
+                    model=self.model,
                     messages=[
                         {"role": "system", "content": "You are a helpful assistant."},
                         {"role": "user", "content": prompt}
@@ -127,7 +127,7 @@ class AIClient:
         text = text.replace("\n", " ")
         if self.openai_client:
             try:
-                return self.openai_client.embeddings.create(input=[text], model="text-embedding-3-small").data[0].embedding
+                return self.openai_client.embeddings.create(input=[text], model=EMBEDDING_MODEL).data[0].embedding
             except Exception as exc:
                 logger.error("[✗] OpenAI Embedding request failed: %s", exc)
                 return []

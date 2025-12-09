@@ -138,7 +138,7 @@
     - `.env.example` を `.env` にコピーし、以下を設定します
         - `OPENAI_API_KEY`: **必須** (Embedding 生成および LLM 推論に使用)
         - `LINE_CHANNEL_ID`, `LINE_CHANNEL_SECRET`, `LINE_REDIRECT_URI`
-    - `config.py` の `AI_URL` / `AI_MODEL` を使用する LLM に合わせて変更します
+    - `config.py` の `LLM_MODEL` / `AI_URL` を使用する LLM に合わせて変更します
 
 3. **コンテナの起動**
     ```bash
