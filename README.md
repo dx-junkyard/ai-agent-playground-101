@@ -106,6 +106,8 @@
 - `/api/v1/user-message`: ユーザーのメッセージを受け取り、LangGraph ワークフローを実行して応答を返却
 - **`/api/v1/user-message-stream`**: LangGraph の実行状況と応答をリアルタイムでストリーミング配信 (NDJSON)
 - `/api/v1/user-messages`: 指定ユーザーの直近メッセージ履歴を取得
+
+### 管理 API (Admin - Port 8087)
 - **`/api/v1/service-catalog/import`**: サービスカタログ (JSON) をインポートし、Embedding を生成して DB/Qdrant に保存
 - **`/api/v1/service-catalog/reset`**: サービスカタログデータをリセット (DELETE)
 
@@ -147,6 +149,7 @@
 4. **アプリケーションへのアクセス**
     - UI: http://localhost:8080
     - API: http://localhost:8086
+    - Admin API: http://localhost:8087
     - MySQL: localhost:3306（ユーザー名 `me`、パスワード `me`）
     - Qdrant: http://localhost:6333
 
@@ -173,7 +176,9 @@ sh ./scripts/ops/import_catalog.sh
 カタログデータを全て消去して初期状態に戻す場合に使用します。
 
 ```bash
-curl -X DELETE "http://localhost:8086/api/v1/service-catalog/reset"
+```bash
+curl -X DELETE "http://localhost:8087/api/v1/service-catalog/reset"
+```
 ```
 
 ### API の直接利用
