@@ -15,6 +15,21 @@ services:
     volumes:
       - .:/app
 
+  admin-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    command: uvicorn app.api.admin:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8087:8000"
+    environment:
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - DB_HOST=db
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - .:/app
+
   ui:
     build:
       context: .
