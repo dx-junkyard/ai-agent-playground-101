@@ -161,7 +161,7 @@ async def create_user(request: Request) -> Dict[str, str]:
     user_id = repo.create_user(line_user_id=line_user_id)
     return {"user_id": user_id}
 
-# LINEのWebhookエンドポイント
+# LINEのWebhookエンドポイント（LangGraphワークフロー使用）
 @app.post("/api/v1/user-message")
 async def post_usermessage(request: Request) -> str:
     try:
@@ -169,29 +169,45 @@ async def post_usermessage(request: Request) -> str:
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON")
    
-    ai_generator = AIClient()
+    from app.api.workflow import WorkflowManager
+    
+    ai_client = AIClient()
     message = body.get("message", "")
     user_id = body.get("user_id")
     repo = DBClient()
+    
     if user_id:
         repo.ensure_user_exists(user_id)
         repo.insert_message(user_id, "user", message)
 
-    conversation_history = ""
+    # 会話履歴を取得
+    conversation_history = []
     if user_id:
         history_records = repo.get_user_messages(user_id=user_id, limit=20)
         if history_records:
-            conversation_history = "\n".join(
-                f"{'利用者' if record['role'] == 'user' else '職員'}: {record['message']}"
+            conversation_history = [
+                {"role": record['role'], "message": record['message']}
                 for record in reversed(history_records)
-            )
+            ]
 
-    ai_response = ai_generator.create_response(message, conversation_history)
-    logger.info(f"AI response: {ai_response}")
+    # LangGraphワークフローを実行
+    workflow_manager = WorkflowManager(ai_client)
+    initial_state = {
+        "user_message": message,
+        "conversation_history": conversation_history
+    }
+    
+    result = workflow_manager.invoke(initial_state)
+    ai_response = result.get("ai_response", "申し訳ありません。応答を生成できませんでした。")
+    
+    logger.info(f"LangGraph workflow result: category={result.get('category')}, is_complete={result.get('is_complete')}")
+    
     if user_id:
         repo.insert_message(user_id, "ai", ai_response)
-        full_history = repo.get_user_messages(user_id=user_id, limit=50)
-        _update_user_profile(repo, user_id, full_history)
+        # 分析結果を保存（オプション）
+        if result.get("department"):
+            logger.info(f"担当課: {result['department'].get('dept')}")
+    
     return ai_response
 
 @app.get("/api/v1/user-messages")
@@ -202,5 +218,5 @@ async def get_user_messages(user_id: str = Query(..., description="ユーザーI
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8080, reload=True)
 

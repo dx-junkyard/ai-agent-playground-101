@@ -12,89 +12,78 @@ from line_login import ensure_login
 
 logger = logging.getLogger(__name__)
 
-API_URL = os.environ.get("API_URL", "http://api:8000/api/v1/user-message")
+API_URL = os.environ.get("API_URL", "http://localhost:8080/api/v1/user-message")
 
+# 福岡市版：カテゴリと情報項目
 INFO_ITEMS = [
     {
-        "key": "age",
-        "label": "年齢",
-        "patterns": [r"\b\d{1,3}\s*(歳|才)"],
-        "hint": "ご本人様や対象の方の年齢を教えてください",
+        "key": "ward",
+        "label": "区",
+        "patterns": [r"東区", r"博多区", r"中央区", r"南区", r"城南区", r"早良区", r"西区"],
+        "hint": "福岡市のどの区の内容ですか？",
     },
     {
-        "key": "household",
-        "label": "家族構成",
-        "patterns": [r"家族", r"夫", r"妻", r"子ども", r"世帯", r"同居"],
-        "hint": "一緒にお住まいのご家族について伺ってもよろしいでしょうか",
+        "key": "location",
+        "label": "場所",
+        "patterns": [r"駅", r"通り", r"丁目", r"番地", r"交差点", r"公園", r"川", r"住所"],
+        "hint": "場所はどこですか？（住所／近くの施設名／交差点名など）",
     },
     {
-        "key": "residence",
-        "label": "居住状況",
-        "patterns": [r"市内", r"国分寺", r"在住", r"転入", r"転出", r"引っ越"],
-        "hint": "国分寺市にお住まいか、転入・転出のご予定かを教えてください",
+        "key": "road_damage",
+        "label": "道路損傷",
+        "patterns": [r"道路", r"傷み", r"破損", r"穴"],
+        "hint": "道路の損傷について詳しく教えてください",
     },
     {
-        "key": "address",
-        "label": "住所・予定地",
-        "patterns": [r"丁目", r"番地", r"住所", r"町"],
-        "hint": "差し支えなければ町名など大まかな住所を伺います",
+        "key": "streetlight",
+        "label": "街路灯",
+        "patterns": [r"街灯", r"街路灯", r"照明"],
+        "hint": "街路灯の故障について詳しく教えてください",
     },
     {
-        "key": "purpose",
-        "label": "相談目的",
-        "patterns": [r"手続", r"申請", r"相談", r"証明", r"補助", r"支援"],
-        "hint": "どのような手続きやご相談をご希望でしょうか",
+        "key": "garbage",
+        "label": "ごみ散乱",
+        "patterns": [r"ごみ", r"散乱", r"落ちてる"],
+        "hint": "ごみの散乱について詳しく教えてください",
     },
     {
-        "key": "documents",
-        "label": "必要書類",
-        "patterns": [r"書類", r"必要", r"持参", r"持ち物"],
-        "hint": "ご不明な書類があれば教えてください",
+        "key": "illegal_dumping",
+        "label": "不法投棄",
+        "patterns": [r"不法投棄", r"捨ててる"],
+        "hint": "不法投棄について詳しく教えてください",
     },
     {
-        "key": "urgency",
-        "label": "期限・緊急度",
-        "patterns": [r"いつまで", r"期限", r"早め", r"急", r"本日"],
-        "hint": "いつ頃までに手続きを済ませたいか伺えますか",
+        "key": "wildlife",
+        "label": "獣害",
+        "patterns": [r"イノシシ", r"野生", r"動物", r"害獣"],
+        "hint": "野生鳥獣による被害について詳しく教えてください",
     },
     {
-        "key": "method",
-        "label": "手続き方法",
-        "patterns": [r"窓口", r"来庁", r"オンライン", r"郵送"],
-        "hint": "来庁予定かオンライン・郵送などご希望の方法を教えてください",
+        "key": "time",
+        "label": "発見時期",
+        "patterns": [r"今日", r"昨日", r"先週", r"朝", r"昼", r"夜", r"最近"],
+        "hint": "いつ頃（いつから）気づきましたか？",
     },
     {
-        "key": "interests",
-        "label": "興味・関心",
-        "patterns": [r"趣味", r"好き", r"興味", r"楽し"],
-        "hint": "差し支えなければ好きなことや興味のあることを伺えますか",
-    },
-    {
-        "key": "exercise",
-        "label": "運動歴",
-        "patterns": [r"運動", r"スポーツ", r"トレーニング", r"体操"],
-        "hint": "普段されている運動やスポーツがあれば教えてください",
-    },
-    {
-        "key": "considerations",
-        "label": "配慮事項",
-        "patterns": [r"体", r"障害", r"言語", r"仕事", r"勤務", r"育児"],
-        "hint": "特に配慮が必要な事情があればお知らせください",
+        "key": "details",
+        "label": "詳細",
+        "patterns": [r"状況", r"状態", r"詳しく"],
+        "hint": "状況をもう少し詳しく教えてください",
     },
 ]
 
 BADGES = [
-    (3, "聞き取り上手"),
-    (6, "市民サポーター"),
-    (9, "窓口マスター"),
+    (3, "情報収集の達人"),
+    (5, "福岡市サポーター"),
+    (7, "窓口案内マスター"),
 ]
 
 DAILY_MISSIONS = [
-    {"key": "age", "text": "年齢を伺おう"},
-    {"key": "household", "text": "家族構成を把握しよう"},
-    {"key": "interests", "text": "興味のあることを聞き出そう"},
-    {"key": "exercise", "text": "運動歴を確認しよう"},
-    {"key": "residence", "text": "居住状況を確認しよう"},
+    {"key": "ward", "text": "区を確認しよう"},
+    {"key": "location", "text": "場所を把握しよう"},
+    {"key": "road_damage", "text": "道路損傷の情報を集めよう"},
+    {"key": "streetlight", "text": "街路灯の情報を集めよう"},
+    {"key": "garbage", "text": "ごみ散乱の情報を集めよう"},
 ]
 
 
@@ -147,8 +136,8 @@ class ChatUI:
             st.session_state.messages = [
                 {
                     "role": "assistant",
-                    "content": "こんにちは。国分寺市役所オンライン相談窓口です。お困りごとがスムーズに解決できるよう、一緒に進めてまいりますね。",
-                    "summary": "初回案内: 利用者に寄り添った挨拶",
+                    "content": "こんにちは。福岡市役所オンライン相談窓口です。道路・街路灯・ごみ・不法投棄・獣害などのお困りごとについて、適切な担当課をご案内いたします。お気軽にご相談ください。",
+                    "summary": "初回案内: 福岡市の相談窓口案内",
                 }
             ]
         if "info_status" not in st.session_state:
@@ -173,11 +162,7 @@ class ChatUI:
             st.session_state.mission_completed = True
 
     def _render_sidebar(self):
-        st.sidebar.image(
-            "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Kokubunji_city_logo.svg/512px-Kokubunji_city_logo.svg.png",
-            width=120,
-        )
-        st.sidebar.title("ご相談ナビゲーター")
+        st.sidebar.title("🏢 福岡市 相談窓口ナビ")
 
         completed = sum(1 for v in st.session_state.info_status.values() if v)
         total = len(INFO_ITEMS)
@@ -217,15 +202,15 @@ class ChatUI:
         if st.session_state.window_selected:
             return
 
-        st.header("まずはご相談内容に近い窓口をお選びください")
+        st.header("まずはお困りごとの種類をお選びください")
         options = [
-            "住民票・印鑑証明", "戸籍・転入転出", "子育て・教育", "高齢者支援", "国民健康保険・年金",
-            "税金・納付", "事業者向け相談", "その他総合案内",
+            "道路の損傷・陥没", "街路灯の故障", "公園の損傷", "河川・排水の問題",
+            "ごみの散乱", "不法投棄", "野生鳥獣による被害", "その他",
         ]
-        choice = st.radio("以下から最も近いものをお選びいただくと、ご案内がスムーズになります。", options, index=0)
+        choice = st.radio("以下から最も近いものをお選びいただくと、適切な担当課をご案内できます。", options, index=0)
         if st.button("この内容で相談を進める", type="primary"):
             st.session_state.window_selected = choice
-            st.session_state.messages.append({"role": "user", "content": f"窓口選択: {choice}"})
+            st.session_state.messages.append({"role": "user", "content": f"相談内容: {choice}"})
             self._refresh_progress()
             self._rerun()
         st.stop()
@@ -291,14 +276,14 @@ class ChatUI:
                     st.caption(message["summary"])
 
     def run(self):
-        st.set_page_config(page_title="国分寺市 窓口チャット", page_icon="🏢", layout="wide")
+        st.set_page_config(page_title="福岡市 相談窓口チャット", page_icon="🏢", layout="wide")
         ensure_login()
         self._init_session()
         self._render_sidebar()
 
         self._ensure_window_selection()
 
-        st.title("国分寺市役所 行政窓口チャット")
+        st.title("福岡市役所 相談窓口チャット")
         self._render_hint_bar()
 
         self._render_conversation()
