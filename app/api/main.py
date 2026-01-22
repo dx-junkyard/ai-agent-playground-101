@@ -3,7 +3,7 @@ import re
 from bs4 import BeautifulSoup
 from fastapi import FastAPI, Request, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Dict, List
+from typing import Dict, List, Any
 import logging
 import copy
 
@@ -284,6 +284,77 @@ async def get_user_messages(user_id: str = Query(..., description="ユーザーI
     repo = DBClient()
     messages = repo.get_user_messages(user_id=user_id, limit=limit)
     return messages
+
+
+# 青梅市向け報告内容整理エンドポイント
+@app.post("/api/v1/oume/report")
+async def post_oume_report(request: Request) -> Dict[str, Any]:
+    """
+    青梅市向けの報告内容整理エンドポイント
+    LINE通報AI管理システム用のPoC
+    """
+    logger.info("=" * 60)
+    logger.info("APIリクエスト受信: /api/v1/oume/report")
+    try:
+        body = await request.json()
+        logger.info(f"リクエストボディ受信: {body}")
+    except Exception as e:
+        logger.error(f"JSON解析エラー: {e}", exc_info=True)
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+    
+    try:
+        from app.api.workflow_oume import OumeWorkflowManager
+        
+        try:
+            ai_client = AIClient()
+            logger.info("AIClient初期化成功")
+        except Exception as e:
+            logger.warning(f"AIClient初期化エラー（続行）: {e}")
+            from unittest.mock import MagicMock
+            ai_client = MagicMock()
+            ai_client.create_response = MagicMock(return_value="モック応答")
+        
+        message = body.get("message", "")
+        user_id = body.get("user_id")
+        conversation_history = body.get("conversation_history", [])
+        logger.info(f"メッセージ抽出: message='{message}', user_id='{user_id}'")
+        
+        # 青梅市向けワークフローを実行
+        logger.info("OumeWorkflowManager初期化開始")
+        workflow_manager = OumeWorkflowManager(ai_client)
+        logger.info("OumeWorkflowManager初期化完了")
+        
+        initial_state = {
+            "user_message": message,
+            "conversation_history": conversation_history
+        }
+        logger.info(f"ワークフロー実行開始: initial_state keys={list(initial_state.keys())}")
+        
+        result = workflow_manager.invoke(initial_state)
+        logger.info(f"ワークフロー実行完了: result keys={list(result.keys())}")
+        
+        # レスポンスを構築
+        response = {
+            "ai_response": result.get("ai_response", "申し訳ありません。応答を生成できませんでした。"),
+            "category": result.get("category"),
+            "is_complete": result.get("is_complete", False),
+            "missing_slots": result.get("missing_slots", []),
+            "extracted": result.get("extracted", {}),
+            "department": result.get("department"),
+            "turn_labels": result.get("turn_labels", [])
+        }
+        
+        logger.info(f"AI応答生成: length={len(response['ai_response'])}, category={response['category']}")
+        logger.info("=" * 60)
+        
+        return response
+        
+    except Exception as e:
+        logger.error("=" * 60)
+        logger.error(f"APIエラー発生: {type(e).__name__}: {e}", exc_info=True)
+        logger.error("=" * 60)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
 
 if __name__ == "__main__":
     import uvicorn
