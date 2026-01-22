@@ -22,17 +22,27 @@ class AIClient:
 
     def __init__(self, model: str = AI_MODEL, prompt_path: Path = None):
         api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            logger.warning("OPENAI_API_KEY が設定されていません。応答生成に失敗します。")
         self.model = model
         self.prompt_path = Path(prompt_path) if prompt_path else self.PROMPT_PATH
-        self.client = OpenAI(api_key=api_key, base_url=AI_API_BASE)
-        logger.info(
-            "AIClient initialized with OpenAI model: %s (base_url=%s), prompt: %s",
-            model,
-            AI_API_BASE or "default",
-            self.prompt_path,
-        )
+        
+        # api_keyが設定されていない場合の処理
+        if not api_key:
+            logger.warning("OPENAI_API_KEY が設定されていません。応答生成に失敗します。")
+            # ダミーのapi_keyを使用（実際のAPI呼び出しは失敗するが、初期化は成功）
+            api_key = "dummy-key-for-initialization"
+        
+        try:
+            self.client = OpenAI(api_key=api_key, base_url=AI_API_BASE)
+            logger.info(
+                "AIClient initialized with OpenAI model: %s (base_url=%s), prompt: %s",
+                model,
+                AI_API_BASE or "default",
+                self.prompt_path,
+            )
+        except Exception as e:
+            logger.error(f"AIClient初期化エラー: {e}")
+            # エラーが発生しても初期化は続行（workflow.pyでは実際には使用しないため）
+            self.client = None
 
     def _load_prompt(self) -> str:
         try:

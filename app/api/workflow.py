@@ -216,19 +216,23 @@ class WorkflowManager:
     def _intake_node(self, state: GraphState) -> Dict[str, Any]:
         """受付ノード：初期化"""
         try:
-            logger.debug("受付ノード実行中...")
+            logger.info("  [intake] 受付ノード実行開始")
             user_message = state.get("user_message", "")
             conversation_history = state.get("conversation_history", [])
+            logger.info(f"  [intake] user_message: '{user_message[:50]}...' (length={len(user_message)})")
+            logger.info(f"  [intake] conversation_history: {len(conversation_history)}件")
             
             # 会話履歴に現在のメッセージを追加（ここではまだ追加しない）
-            return {
+            result = {
                 "user_message": user_message,
                 "conversation_history": conversation_history,
                 "extracted": state.get("extracted", {}),
                 "turn_labels": state.get("turn_labels", [])
             }
+            logger.info(f"  [intake] 受付ノード完了")
+            return result
         except Exception as e:
-            logger.error(f"受付ノードエラー: {e}", exc_info=True)
+            logger.error(f"  [intake] 受付ノードエラー: {type(e).__name__}: {e}", exc_info=True)
             return {}
 
     def _extract_node(self, state: GraphState) -> Dict[str, Any]:
@@ -272,12 +276,15 @@ class WorkflowManager:
     def _classify_node(self, state: GraphState) -> Dict[str, Any]:
         """分類ノード：カテゴリを判定"""
         try:
-            logger.debug("分類ノード実行中...")
+            logger.info("  [classify] 分類ノード実行開始")
             user_message = state.get("user_message", "").lower()
             category = state.get("category")
+            logger.info(f"  [classify] 入力メッセージ: '{user_message[:50]}...'")
+            logger.info(f"  [classify] 既存category: {category}")
             
             # 既に分類されていればそのまま
             if category:
+                logger.info(f"  [classify] 既存カテゴリを使用: {category}")
                 return {"category": category}
             
             # キーワードベースで分類（実際はLLMで分類する）
@@ -300,25 +307,29 @@ class WorkflowManager:
             else:
                 category = "other"
             
-            logger.debug(f"分類完了: {category}")
+            logger.info(f"  [classify] 分類完了: {category}")
             return {"category": category}
         except Exception as e:
-            logger.error(f"分類ノードエラー: {e}", exc_info=True)
+            logger.error(f"  [classify] 分類ノードエラー: {type(e).__name__}: {e}", exc_info=True)
             return {"category": "other"}
 
     def _validate_node(self, state: GraphState) -> Dict[str, Any]:
         """検証ノード：required不足を算出"""
         try:
-            logger.debug("検証ノード実行中...")
+            logger.info("  [validate] 検証ノード実行開始")
             category_key = state.get("category", "other")
             extracted = state.get("extracted", {})
+            logger.info(f"  [validate] category: {category_key}")
+            logger.info(f"  [validate] extracted: {extracted}")
             
             # カテゴリに対応するrequiredを取得
             category_info = next((c for c in CATEGORIES if c["key"] == category_key), None)
             if not category_info:
                 category_info = next((c for c in CATEGORIES if c["key"] == "other"), None)
+                logger.info(f"  [validate] カテゴリが見つからないため、'other'を使用")
             
             required = category_info.get("required", ["details"])
+            logger.info(f"  [validate] required: {required}")
             missing_slots = []
             
             # 不足スロットをチェック（優先順位順）
@@ -326,43 +337,50 @@ class WorkflowManager:
                 if slot in required and not extracted.get(slot):
                     missing_slots.append(slot)
             
-            logger.debug(f"検証完了: missing_slots={missing_slots}")
+            is_complete = len(missing_slots) == 0
+            logger.info(f"  [validate] 検証完了: missing_slots={missing_slots}, is_complete={is_complete}")
             return {
                 "missing_slots": missing_slots,
-                "is_complete": len(missing_slots) == 0
+                "is_complete": is_complete
             }
         except Exception as e:
-            logger.error(f"検証ノードエラー: {e}", exc_info=True)
+            logger.error(f"  [validate] 検証ノードエラー: {type(e).__name__}: {e}", exc_info=True)
             return {"missing_slots": [], "is_complete": False}
 
     def _ask_missing_node(self, state: GraphState) -> Dict[str, Any]:
         """不足質問ノード：不足スロットを質問（wardを最優先）"""
         try:
-            logger.debug("不足質問ノード実行中...")
+            logger.info("  [ask_missing] 不足質問ノード実行開始")
             missing_slots = state.get("missing_slots", [])
+            logger.info(f"  [ask_missing] missing_slots: {missing_slots}")
             
             if not missing_slots:
+                logger.info("  [ask_missing] 不足スロットなし")
                 return {"ai_response": "ありがとうございます。情報を確認しました。"}
             
             # 優先順位に従って最初の不足スロットを質問
             first_missing = missing_slots[0]
             question = SLOT_QUESTIONS.get(first_missing, f"{first_missing}について教えてください。")
             
-            logger.debug(f"不足質問: {first_missing}")
+            logger.info(f"  [ask_missing] 不足質問生成: {first_missing} -> '{question[:50]}...'")
             return {"ai_response": question}
         except Exception as e:
-            logger.error(f"不足質問ノードエラー: {e}", exc_info=True)
+            logger.error(f"  [ask_missing] 不足質問ノードエラー: {type(e).__name__}: {e}", exc_info=True)
             return {"ai_response": "もう一度お聞かせください。"}
 
     def _finalize_node(self, state: GraphState) -> Dict[str, Any]:
         """確定ノード：窓口確定・payload作成"""
         try:
-            logger.debug("確定ノード実行中...")
+            logger.info("  [finalize] 確定ノード実行開始")
             category = state.get("category", "other")
             extracted = state.get("extracted", {})
+            logger.info(f"  [finalize] category: {category}")
+            logger.info(f"  [finalize] extracted: {extracted}")
             
             # 担当課を決定
+            logger.info("  [finalize] 担当課決定開始")
             department = resolve_department(category, extracted)
+            logger.info(f"  [finalize] 担当課決定完了: {department}")
             
             # 応答メッセージを作成
             dept_info = department.get("dept", "担当課")
@@ -385,17 +403,17 @@ class WorkflowManager:
             
             ai_response = "\n".join(response_parts)
             
-            logger.debug(f"確定完了: department={dept_info}")
+            logger.info(f"  [finalize] 確定完了: department={dept_info}, response_length={len(ai_response)}")
             return {
                 "department": department,
                 "ai_response": ai_response,
                 "is_complete": True
             }
         except Exception as e:
-            logger.error(f"確定ノードエラー: {e}", exc_info=True)
+            logger.error(f"  [finalize] 確定ノードエラー: {type(e).__name__}: {e}", exc_info=True)
             return {
                 "department": {},
-                "ai_response": "申し訳ありません。処理中にエラーが発生しました。",
+                "ai_response": f"申し訳ありません。処理中にエラーが発生しました: {str(e)}",
                 "is_complete": True
             }
 
@@ -444,12 +462,17 @@ class WorkflowManager:
             Dict[str, Any]: 実行後の最終状態
         """
         try:
-            logger.info("Workflow開始: user_message='%s'", initial_state.get("user_message", "")[:50])
+            user_message = initial_state.get("user_message", "")
+            conversation_history = initial_state.get("conversation_history", [])
+            logger.info("=" * 60)
+            logger.info("Workflow開始")
+            logger.info(f"  user_message: '{user_message[:100]}...' (length={len(user_message)})")
+            logger.info(f"  conversation_history: {len(conversation_history)}件")
             
             # 初期状態をGraphStateに合わせる
             graph_state: GraphState = {
-                "user_message": initial_state.get("user_message", ""),
-                "conversation_history": initial_state.get("conversation_history", []),
+                "user_message": user_message,
+                "conversation_history": conversation_history,
                 "extracted": {},
                 "category": None,
                 "missing_slots": [],
@@ -458,15 +481,34 @@ class WorkflowManager:
                 "turn_labels": [],
                 "is_complete": False
             }
+            logger.info(f"GraphState初期化完了: keys={list(graph_state.keys())}")
             
+            logger.info("LangGraph実行開始...")
             result = self.graph.invoke(graph_state)
-            logger.info("Workflow完了: ai_response生成済み")
+            logger.info("LangGraph実行完了")
+            
+            ai_response = result.get("ai_response")
+            category = result.get("category")
+            is_complete = result.get("is_complete")
+            missing_slots = result.get("missing_slots", [])
+            
+            logger.info("Workflow完了")
+            logger.info(f"  ai_response: '{ai_response[:100] if ai_response else None}...' (length={len(ai_response) if ai_response else 0})")
+            logger.info(f"  category: {category}")
+            logger.info(f"  is_complete: {is_complete}")
+            logger.info(f"  missing_slots: {missing_slots}")
+            if result.get("department"):
+                logger.info(f"  department: {result['department'].get('dept', '不明')}")
+            logger.info("=" * 60)
+            
             return result
         except Exception as e:
-            logger.error(f"Workflow実行エラー: {e}", exc_info=True)
-            return {
+            logger.error("=" * 60)
+            logger.error(f"Workflow実行エラー: {type(e).__name__}: {e}", exc_info=True)
+            logger.error("=" * 60)
+        return {
                 **initial_state,
-                "ai_response": "申し訳ありません。処理中にエラーが発生しました。もう一度お試しください。",
+                "ai_response": f"申し訳ありません。処理中にエラーが発生しました: {str(e)}",
                 "error": str(e)
             }
 
