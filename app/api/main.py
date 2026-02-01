@@ -314,10 +314,23 @@ async def post_oume_report(request: Request) -> Dict[str, Any]:
             ai_client = MagicMock()
             ai_client.create_response = MagicMock(return_value="モック応答")
         
-        message = body.get("message", "")
+        message = (body.get("message") or "").strip()
         user_id = body.get("user_id")
         conversation_history = body.get("conversation_history", [])
         logger.info(f"メッセージ抽出: message='{message}', user_id='{user_id}'")
+        
+        if not message:
+            logger.warning("空メッセージのため400を返却")
+            raise HTTPException(status_code=400, detail="message is required and must be non-empty")
+        
+        # マルチターン用コンテキスト（前ターンの抽出結果・カテゴリを引き継ぐ場合に使用）
+        context = body.get("context") or {}
+        prev_extracted = context.get("extracted")
+        prev_category = context.get("category")
+        if prev_extracted is not None and not isinstance(prev_extracted, dict):
+            prev_extracted = None
+        if prev_category is not None and not isinstance(prev_category, str):
+            prev_category = None
         
         # 青梅市向けワークフローを実行
         logger.info("OumeWorkflowManager初期化開始")
@@ -326,7 +339,8 @@ async def post_oume_report(request: Request) -> Dict[str, Any]:
         
         initial_state = {
             "user_message": message,
-            "conversation_history": conversation_history
+            "conversation_history": conversation_history,
+            "context": {"extracted": prev_extracted, "category": prev_category}
         }
         logger.info(f"ワークフロー実行開始: initial_state keys={list(initial_state.keys())}")
         

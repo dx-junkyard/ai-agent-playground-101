@@ -96,7 +96,8 @@ class OumeWorkflowManager:
             logger.info("  [intake] 受付ノード実行開始")
             user_message = state.get("user_message", "")
             conversation_history = state.get("conversation_history", [])
-            logger.info(f"  [intake] user_message: '{user_message[:50]}...' (length={len(user_message)})")
+            _preview = (user_message[:50] + "..." if len(user_message) > 50 else user_message) if user_message else "(空)"
+            logger.info(f"  [intake] user_message: '{_preview}' (length={len(user_message)})")
             logger.info(f"  [intake] conversation_history: {len(conversation_history)}件")
             
             result = {
@@ -117,7 +118,8 @@ class OumeWorkflowManager:
             logger.info("  [classify] 分類ノード実行開始")
             user_message = state.get("user_message", "")
             category = state.get("category")
-            logger.info(f"  [classify] 入力メッセージ: '{user_message[:50]}...'")
+            _preview = (user_message[:50] + "..." if len(user_message) > 50 else user_message) if user_message else "(空)"
+            logger.info(f"  [classify] 入力メッセージ: '{_preview}'")
             logger.info(f"  [classify] 既存category: {category}")
             
             # 既に分類されていればそのまま
@@ -140,7 +142,8 @@ class OumeWorkflowManager:
             user_message = state.get("user_message", "")
             category_key = state.get("category", "other")
             extracted = state.get("extracted", {}).copy()
-            logger.info(f"  [extract] 入力メッセージ: '{user_message[:50]}...'")
+            _preview = (user_message[:50] + "..." if len(user_message) > 50 else user_message) if user_message else "(空)"
+            logger.info(f"  [extract] 入力メッセージ: '{_preview}'")
             logger.info(f"  [extract] category: {category_key}")
             logger.info(f"  [extract] 既存extracted: {extracted}")
             
@@ -188,7 +191,8 @@ class OumeWorkflowManager:
             
             # ReportOrganizerで質問生成
             question = self.report_organizer.ask_missing(missing_slots, category_key)
-            logger.info(f"  [ask_missing] 不足質問生成: '{question[:50]}...'")
+            _q = (question[:50] + "..." if len(question) > 50 else question) if question else ""
+            logger.info(f"  [ask_missing] 不足質問生成: '{_q}'")
             return {"ai_response": question}
         except Exception as e:
             logger.error(f"  [ask_missing] 不足質問ノードエラー: {type(e).__name__}: {e}", exc_info=True)
@@ -286,21 +290,27 @@ class OumeWorkflowManager:
         try:
             user_message = initial_state.get("user_message", "")
             conversation_history = initial_state.get("conversation_history", [])
+            context = initial_state.get("context") or {}
+            prev_extracted = context.get("extracted") if isinstance(context.get("extracted"), dict) else {}
+            prev_category = context.get("category") if isinstance(context.get("category"), str) else None
             logger.info("=" * 60)
             logger.info("Workflow開始（青梅市版）")
-            logger.info(f"  user_message: '{user_message[:100]}...' (length={len(user_message)})")
+            _msg_preview = user_message[:100] + ("..." if len(user_message) > 100 else "") if user_message else "(空)"
+            logger.info(f"  user_message: '{_msg_preview}' (length={len(user_message)})")
             logger.info(f"  conversation_history: {len(conversation_history)}件")
+            if prev_extracted or prev_category:
+                logger.info(f"  context: category={prev_category}, extracted_keys={list(prev_extracted.keys()) if prev_extracted else []}")
             
-            # 初期状態をOumeGraphStateに合わせる
+            # 初期状態をOumeGraphStateに合わせる（マルチターン時は前ターンの結果を引き継ぐ）
             graph_state: OumeGraphState = {
                 "user_message": user_message,
                 "conversation_history": conversation_history,
-                "extracted": {},
-                "category": None,
+                "extracted": prev_extracted.copy() if prev_extracted else {},
+                "category": prev_category,
                 "missing_slots": [],
                 "department": None,
                 "ai_response": None,
-                "turn_labels": [],
+                "turn_labels": initial_state.get("turn_labels", []) or [],
                 "is_complete": False
             }
             logger.info(f"GraphState初期化完了: keys={list(graph_state.keys())}")
@@ -315,7 +325,8 @@ class OumeWorkflowManager:
             missing_slots = result.get("missing_slots", [])
             
             logger.info("Workflow完了")
-            logger.info(f"  ai_response: '{ai_response[:100] if ai_response else None}...'")
+            _resp_preview = (ai_response[:100] + "..." if len(ai_response) > 100 else ai_response) if ai_response else "(なし)"
+            logger.info(f"  ai_response: '{_resp_preview}'")
             logger.info(f"  category: {category}")
             logger.info(f"  is_complete: {is_complete}")
             logger.info(f"  missing_slots: {missing_slots}")

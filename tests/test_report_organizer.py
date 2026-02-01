@@ -130,6 +130,28 @@ class TestWorkflowIntegration(unittest.TestCase):
         self.assertIn("ai_response", result)
         self.assertIsNotNone(result["ai_response"])
 
+    def test_workflow_multiturn_context(self):
+        """マルチターン用コンテキスト引き継ぎのテスト"""
+        # 1ターン目: 獣害と伝える
+        r1 = self.workflow.invoke({
+            "user_message": "イノシシが畑を荒らしています",
+            "conversation_history": []
+        })
+        self.assertEqual(r1["category"], "wildlife_damage")
+        self.assertIn("missing_slots", r1)
+        # 2ターン目: 場所だけ送り、カテゴリ・既存抽出をコンテキストで渡す
+        r2 = self.workflow.invoke({
+            "user_message": "青梅市勝沼123です。今朝8時頃です。",
+            "conversation_history": [],
+            "context": {
+                "category": r1["category"],
+                "extracted": r1.get("extracted", {})
+            }
+        })
+        self.assertEqual(r2["category"], "wildlife_damage")
+        self.assertIn("extracted", r2)
+        self.assertIn("ai_response", r2)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -169,6 +169,7 @@
         const status = document.getElementById('status');
 
         let userId = 'test-user-' + Date.now();
+        let lastContext = null;
 
         function addMessage(content, isUser, category = null) {
             const messageDiv = document.createElement('div');
@@ -202,8 +203,10 @@
             const requestBody = {
                 user_id: userId,
                 message: message,
-                conversation_history: []  // 青梅市向けエンドポイント用
+                conversation_history: [],  // 必要に応じて履歴を渡す
+                context: lastContext ? { extracted: lastContext.extracted, category: lastContext.category } : undefined
             };
+            if (!requestBody.context || (!requestBody.context.extracted && !requestBody.context.category)) delete requestBody.context;
 
             console.log('送信リクエスト:', {
                 url: API_URL,
@@ -240,6 +243,7 @@
                 const aiResponse = responseData.ai_response || responseData;
                 console.log('AI応答受信:', responseData);
                 status.textContent = '受信完了';
+                lastContext = { extracted: responseData.extracted || {}, category: responseData.category || null };
                 
                 // カテゴリ情報も表示
                 let displayMessage = aiResponse;
