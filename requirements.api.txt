@@ -5,3 +5,5 @@ mysql-connector-python
 openai
 python-dotenv
 beautifulsoup4
+langgraph
+langchain-core

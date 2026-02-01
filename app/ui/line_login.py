@@ -15,13 +15,19 @@ logger = logging.getLogger(__name__)
 # the implementation simple for a single-user environment.
 _VALID_STATES: set[str] = set()
 
-load_dotenv()
+load_dotenv(override=True)
 
 # Use the same API_URL default as ui.py and derive the base endpoint for
 # additional API calls such as user registration.
 API_URL = os.getenv("API_URL", "http://api:8000/api/v1/user-message")
 API_BASE_URL = API_URL.rsplit("/", 1)[0]
 logger.info("Using API base URL: %s", API_BASE_URL)
+
+LINE_PROVIDER_NAME = os.getenv("LINE_PROVIDER_NAME", "LINE")
+LINE_PROVIDER_ID = os.getenv("LINE_PROVIDER_ID")
+
+DISABLE_LINE_LOGIN = os.getenv("DISABLE_LINE_LOGIN", "false").lower() == "true"
+DEV_USER_ID = os.getenv("DEV_USER_ID", "dev-user")
 
 LINE_CLIENT_ID = os.getenv("LINE_CHANNEL_ID")
 LINE_CLIENT_SECRET = os.getenv("LINE_CHANNEL_SECRET")
@@ -64,6 +70,33 @@ def _fetch_profile(access_token: str) -> dict:
 
 def ensure_login() -> None:
     """Ensure user has logged in via LINE. Stops execution if not."""
+    if DISABLE_LINE_LOGIN:
+        if "user_id" not in st.session_state:
+            st.session_state["user_id"] = DEV_USER_ID
+        if "line_profile" not in st.session_state:
+            st.session_state["line_profile"] = {
+                "displayName": "Developer",
+            }
+        st.caption("LINE ログインは開発モードのためスキップ中です。")
+        return
+
+    if not LINE_CLIENT_ID or not LINE_CLIENT_SECRET:
+        missing = []
+        if not LINE_CLIENT_ID:
+            missing.append("LINE_CHANNEL_ID")
+        if not LINE_CLIENT_SECRET:
+            missing.append("LINE_CHANNEL_SECRET")
+        msg = " / ".join(missing)
+        st.error(
+            "LINE ログイン設定が未完了です。管理画面でチャネルを作成し、.env に "
+            f"{msg} を設定してください。"
+        )
+        if LINE_PROVIDER_ID:
+            st.info(
+                f"プロバイダー名: {LINE_PROVIDER_NAME} / プロバイダーID: {LINE_PROVIDER_ID}"
+            )
+        st.stop()
+
     if "line_access_token" in st.session_state:
         logger.debug("Already logged in")
         return
